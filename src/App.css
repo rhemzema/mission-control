@@ -465,6 +465,19 @@ html, body, #root {
   color: var(--color-text-faint);
 }
 
+@media (max-width: 767px) {
+  .mc-grid-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mc-empty-state {
+    height: auto;
+    padding: 40px 0;
+  }
+}
+
 .mc-empty-state .material-symbols-outlined {
   font-size: 48px !important;
   opacity: 0.3;
@@ -1123,7 +1136,15 @@ select.mc-input { cursor: pointer; }
   white-space: nowrap;
 }
 
+.mc-info-btn {
+  display: none;
+}
 
+@media (max-width: 767px) {
+  .mc-info-btn {
+    display: flex;
+  }
+}
 
 /* ─── Milestone pulse override ──────────────────────────────────────────── */
 .mc-milestone-active { animation: pulse 1.2s infinite; }

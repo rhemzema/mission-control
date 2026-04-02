@@ -1144,7 +1144,6 @@ export default function MissionControl() {
         </div>
 
         <div className="mc-header-right">
-          {/* Desktop: show/hide panel button */}
           <button
             className={`mc-btn mc-btn-ghost mc-btn-sm mc-hide-mobile ${sidebarOpen ? "active" : ""}`}
             onClick={handleSidebarToggle}
@@ -1154,9 +1153,8 @@ export default function MissionControl() {
             </span>
             {sidebarOpen ? "Hide Panel" : "Show Panel"}
           </button>
-          {/* Mobile: info button opens bottom sheet */}
           <button
-            className="mc-btn mc-btn-ghost mc-btn-sm mc-show-mobile"
+            className="mc-btn mc-btn-ghost mc-btn-sm mc-show-mobile mc-info-btn"
             onClick={() => setMobilePanelOpen(true)}
           >
             <span className="material-symbols-outlined" style={{ fontSize: 16 }}>info</span>

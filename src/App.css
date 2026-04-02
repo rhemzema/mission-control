@@ -99,6 +99,34 @@ html, body, #root {
   .mc-show-mobile { display: flex !important; }
 }
 
+@media (max-width: 767px) {
+  .mc-grid-container {
+    overflow-y: auto;
+    overflow-x: hidden;
+    height: 100%;
+  }
+
+  .mc-grid-container > div {
+    display: flex !important;
+    flex-direction: column !important;
+    height: auto !important;
+    gap: 8px;
+  }
+
+  .mc-stream-wrapper {
+    width: 100% !important;
+    height: auto !important;
+    aspect-ratio: 16 / 10;
+    order: unset !important;
+    grid-column: unset !important;
+    grid-row: unset !important;
+  }
+
+  .mc-stream-card {
+    height: 100%;
+  }
+}
+
 /* ─── App Shell ─────────────────────────────────────────────────────────── */
 .mc-app {
   height: 100vh;
@@ -132,10 +160,25 @@ html, body, #root {
 
 @media (max-width: 767px) {
   .mc-header {
-    padding: 10px 14px;
-    min-height: 56px;
-    grid-template-columns: auto 1fr auto;
-    gap: 8px;
+    padding: 0 14px;
+    min-height: 52px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0;
+  }
+
+  .mc-header-left { display: none; }
+
+  .mc-header-center {
+    flex: 1;
+    justify-content: flex-start;
+    gap: 10px;
+  }
+
+  .mc-header-right {
+    flex-shrink: 0;
   }
 }
 
@@ -310,6 +353,10 @@ html, body, #root {
 @media (max-width: 1000px) {
   .mc-layout-group .mc-btn-label { display: none; }
   .mc-layout-group .mc-btn-sm    { padding: 5px 8px; }
+}
+
+@media (max-width: 767px) {
+  .mc-layout-group { display: none; }
 }
 
 .mc-btn-icon {
@@ -558,6 +605,22 @@ html, body, #root {
   border-color: var(--color-green);
 }
 
+@media (max-width: 767px) {
+    .mc-stream-wrapper {
+    transition: aspect-ratio 0.3s ease;
+  }
+  .mc-stream-wrapper.is-featured {
+    aspect-ratio: 16 / 9;
+  }
+
+  .mc-stream-wrapper.is-collapsed {
+    aspect-ratio: 16 / 4;
+  }
+
+  .mc-stream-wrapper.is-collapsed .mc-stream-video {
+    opacity: 0.5;
+  }
+}
 /* ─── Countdown Timer ───────────────────────────────────────────────────── */
 .mc-countdown {
   display: flex;
@@ -1037,6 +1100,23 @@ select.mc-input { cursor: pointer; }
 .mc-btn-submit.enabled  { background: var(--color-text); color: var(--color-bg); }
 .mc-btn-submit.enabled:hover { background: #fff; }
 .mc-btn-submit.disabled { background: var(--color-border); color: var(--color-text-faint); cursor: not-allowed; }
+
+.mc-mobile-header-brand {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.mc-mobile-mission-label {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  letter-spacing: 2px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+
 
 /* ─── Milestone pulse override ──────────────────────────────────────────── */
 .mc-milestone-active { animation: pulse 1.2s infinite; }

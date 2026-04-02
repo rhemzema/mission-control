@@ -209,7 +209,7 @@ function StatusClock() {
 }
 
 // ─── Stream Card ──────────────────────────────────────────────────────────
-function StreamCard({ stream, iframeKey, onToggleMute, onRemove, isDragging, isAnyDragging }) {
+function StreamCard({ stream, iframeKey, onToggleMute, onRemove, isDragging, isAnyDragging, onTapLabel }) {
   const iframeRef = useRef(null);
   const embedUrl  = useRef(getEmbedUrl(stream)).current;
 
@@ -242,7 +242,7 @@ function StreamCard({ stream, iframeKey, onToggleMute, onRemove, isDragging, isA
           <div className="mc-stream-placeholder">No stream loaded</div>
         )}
       </div>
-      <div className="mc-stream-bar">
+      <div className="mc-stream-bar" onClick={onTapLabel}>
         <div className="mc-stream-info">
           <span className={`mc-stream-dot ${embedUrl ? "live" : "off"}`} />
           <span className="mc-stream-label">{stream.label}</span>
@@ -251,12 +251,12 @@ function StreamCard({ stream, iframeKey, onToggleMute, onRemove, isDragging, isA
           <span className="mc-drag-dots" />
         </div>
         <div className="mc-stream-actions">
-          <button className="mc-btn-icon" onClick={() => onToggleMute(stream.id)} title={stream.muted ? "Unmute" : "Mute"}>
+          <button className="mc-btn-icon" onClick={(e) => { e.stopPropagation(); onToggleMute(stream.id); }} title={stream.muted ? "Unmute" : "Mute"}>
             <span className="material-symbols-outlined" style={{ fontSize: 15 }}>
               {stream.muted ? "volume_off" : "volume_up"}
             </span>
           </button>
-          <button className="mc-btn-icon danger" onClick={() => onRemove(stream.id)} title="Remove">
+          <button className="mc-btn-icon danger" onClick={(e) => { e.stopPropagation(); onRemove(stream.id); }} title="Remove">
             <span className="material-symbols-outlined" style={{ fontSize: 15 }}>close</span>
           </button>
         </div>
@@ -795,7 +795,7 @@ function LiveUpdatesFeed({ updates, loading, isLive, fetchError, lastUpdated, on
 }
 
 // ─── Draggable Stream Grid ────────────────────────────────────────────────
-function DraggableStreamGrid({ streams, setStreams, layout, iframeKey, onToggleMute, onRemove }) {
+function DraggableStreamGrid({ streams, setStreams, layout, iframeKey, onToggleMute, onRemove, featuredId, onFeature }) {
   const [previewStreams, setPreviewStreams] = useState(streams);
   const [draggingId,    setDraggingId]     = useState(null);
   const stableIdsRef  = useRef(streams.map((s) => s.id));
@@ -964,7 +964,15 @@ function DraggableStreamGrid({ streams, setStreams, layout, iframeKey, onToggleM
             key={id}
             data-stream-id={id}
             style={{ ...getItemStyle(visualIndex, previewStreams.length), order: visualIndex }}
-            className={`mc-stream-wrapper ${draggingId === id ? "is-active-drag" : ""}`}
+            className={`mc-stream-wrapper ${draggingId === id ? "is-active-drag" : ""} ${
+              window.innerWidth <= 767
+                ? featuredId === id
+                  ? "is-featured"
+                  : featuredId
+                    ? "is-collapsed"
+                    : ""
+                : ""
+            }`}
             draggable
             onDragStart={(e) => handleDragStart(e, streamData)}
             onDragOver={(e) => handleDragOver(e, id)}
@@ -979,6 +987,7 @@ function DraggableStreamGrid({ streams, setStreams, layout, iframeKey, onToggleM
               onRemove={onRemove}
               isDragging={draggingId === id}
               isAnyDragging={!!draggingId}
+              onTapLabel={() => onFeature(featuredId === id ? null : id)}
             />
           </div>
         );
@@ -1024,6 +1033,7 @@ export default function MissionControl() {
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const [targetOverride, setTargetOverride] = useState(null);
   const [iframeKey,      setIframeKey]      = useState(0);
+  const [featuredId,     setFeaturedId]     = useState(null);
 
   const nasaData = useNASALiveData();
   const ll2      = useLL2LaunchData();
@@ -1121,6 +1131,10 @@ export default function MissionControl() {
         </div>
 
         <div className="mc-header-center">
+          {/* Mobile: compact mission label + countdown in one row */}
+          <div className="mc-mobile-header-brand mc-show-mobile">
+            <span className="mc-mobile-mission-label">ARTEMIS II</span>
+          </div>
           <CountdownTimer targetOverride={targetOverride} onOverride={setTargetOverride} />
           <div className="mc-divider-v mc-hide-mobile" />
           <StatusClock className="mc-hide-mobile" />
@@ -1186,6 +1200,8 @@ export default function MissionControl() {
               iframeKey={iframeKey}
               onToggleMute={toggleMute}
               onRemove={removeStream}
+              featuredId={featuredId}
+              onFeature={setFeaturedId}
             />
           </div>
         </div>

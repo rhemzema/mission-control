@@ -311,9 +311,23 @@ const NASA_RSS_URL = "https://blogs.nasa.gov/artemis/feed/";
 const REFRESH_MS = 5 * 60 * 1000;
 
 async function fetchNASARSS() {
+  // rss2json is a dedicated RSS proxy service — much more reliable than generic CORS proxies
+  const rss2jsonUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent("https://www.nasa.gov/blogs/artemis/feed/")}&api_key=&count=10`;
+
+  try {
+    const res  = await fetch(rss2jsonUrl, { signal: AbortSignal.timeout(14000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.status !== "ok" || !data.items?.length) throw new Error("No items");
+    return data.items;
+  } catch (err) {
+    console.warn("[RSS] rss2json failed:", err.message);
+  }
+
+  // Fallback: generic CORS proxies
   const proxies = [
-    `https://corsproxy.io/?${encodeURIComponent(NASA_RSS_URL)}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(NASA_RSS_URL)}`,
+    `https://corsproxy.io/?${encodeURIComponent("https://www.nasa.gov/blogs/artemis/feed/")}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent("https://www.nasa.gov/blogs/artemis/feed/")}`,
   ];
   for (const url of proxies) {
     try {
@@ -321,7 +335,7 @@ async function fetchNASARSS() {
       if (!res.ok) continue;
       const text = await res.text();
       if (!text.includes("<item>")) continue;
-      return text;
+      return text; // raw XML — handled below
     } catch (err) {
       console.warn("[RSS] proxy failed:", err?.message);
     }
@@ -329,22 +343,30 @@ async function fetchNASARSS() {
   return null;
 }
 
-function parseNASARSS(xml) {
+function parseNASARSS(data) {
   try {
-    const doc   = new DOMParser().parseFromString(xml, "text/xml");
+    // rss2json returns an array of item objects directly
+    if (Array.isArray(data)) {
+      return data.map((item) => ({
+        time: item.pubDate
+          ? new Date(item.pubDate + " UTC").toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" }) + " ET"
+          : "",
+        headline: (item.title || "").substring(0, 100),
+        detail:   (item.description || "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().substring(0, 220),
+      })).filter(u => u.headline);
+    }
+
+    // Fallback: raw XML string
+    const doc   = new DOMParser().parseFromString(data, "text/xml");
     const items = Array.from(doc.querySelectorAll("item")).slice(0, 10);
     return items.map((item) => {
       const title   = item.querySelector("title")?.textContent?.trim() || "";
       const pubDate = item.querySelector("pubDate")?.textContent?.trim() || "";
       const desc    = item.querySelector("description")?.textContent?.trim() || "";
-      const stripped = desc.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
-      const timeLabel = pubDate
-        ? new Date(pubDate).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" }) + " ET"
-        : "";
       return {
-        time:     timeLabel,
+        time:     pubDate ? new Date(pubDate).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" }) + " ET" : "",
         headline: title.substring(0, 100),
-        detail:   stripped.substring(0, 220),
+        detail:   desc.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().substring(0, 220),
       };
     }).filter(u => u.headline);
   } catch (e) {
@@ -400,80 +422,30 @@ function useNASALiveData() {
 }
 
 // ─── LL2 Launch Data Hook ─────────────────────────────────────────────────
-const LL2_POLL_MS = 5 * 60 * 1000;
-const LL2_URL = "https://ll.thespacedevs.com/2.3.0/launches/upcoming/?search=Artemis+II&mode=detailed&limit=3&format=json";
-
-function mapLL2ToStatus(launch) {
-  if (!launch) return null;
-  const st = launch.status || {};
-  const isHold    = st.id === 5 || launch.inhold;
-  const isScrub   = st.id === 4 || st.id === 7;
-  const isSuccess = st.id === 3;
-  const isGo      = st.id === 1;
-  const launchState = isSuccess ? "nominal" : isScrub ? "error" : isHold ? "warning" : isGo ? "go" : "nominal";
-  const prob = launch.probability;
-  const weatherConcerns = launch.weather_concerns;
-  const weatherValue = prob != null ? `${prob}% GO` : "No data";
-  const weatherState = prob == null ? "nominal" : prob >= 80 ? "go" : prob >= 60 ? "warning" : "error";
-  const holdReason = launch.holdreason || "";
-  const rangeValue = isHold ? (holdReason ? `Hold: ${holdReason.substring(0, 28)}` : "HOLD") : "Clear";
-  const rangeState = isHold ? "warning" : "go";
-  const rocketName  = launch.rocket?.configuration?.full_name || launch.rocket?.configuration?.name || "SLS Block 1";
-  const missionName = launch.mission?.name || "Orion";
-  const spacecraft  = missionName.includes("Artemis") ? "Orion" : missionName;
-  const padName     = launch.pad?.name || "LC-39B";
-  const orbitName   = launch.mission?.orbit?.name || "Translunar";
-  const missionType = launch.mission?.type || "Crewed";
-  const windowStart = launch.window_start ? new Date(launch.window_start) : null;
-  const windowEnd   = launch.window_end   ? new Date(launch.window_end)   : null;
-  const windowDurationMin = windowStart && windowEnd ? Math.round((windowEnd - windowStart) / 60000) : null;
-  return {
-    launchStatus: { value: st.name || st.abbrev || "TBD", state: launchState },
-    vehicle:      { value: rocketName,   state: isScrub ? "error" : "nominal" },
-    spacecraft:   { value: spacecraft,   state: "nominal" },
-    weather:      { value: weatherValue, state: weatherState, concerns: weatherConcerns },
-    range:        { value: rangeValue,   state: rangeState },
-    pad:          { value: padName,      state: "nominal" },
-    orbit:        { value: orbitName,    state: "nominal", sub: missionType },
-    window:       { value: windowDurationMin ? `${windowDurationMin} min` : "2 hr", state: "nominal" },
-    holdReason, weatherConcerns,
-    lastUpdated: launch.last_updated ? new Date(launch.last_updated) : null,
-  };
-}
-
 function useLL2LaunchData() {
-  const [ll2Status,    setLl2Status]    = useState(null);
-  const [ll2Loading,   setLl2Loading]   = useState(false);
-  const [ll2Error,     setLl2Error]     = useState(null);
-  const [ll2LastFetch, setLl2LastFetch] = useState(null);
+  // Artemis II launched April 1, 2026 at 6:35 PM ET
+  // LL2 upcoming endpoint no longer returns it post-launch
+  const staticStatus = {
+    launchStatus: { value: "Success",       state: "nominal" },
+    vehicle:      { value: "SLS Block 1",   state: "nominal" },
+    spacecraft:   { value: "Orion",         state: "nominal" },
+    weather:      { value: "Favorable",     state: "go"      },
+    range:        { value: "Clear",         state: "go"      },
+    pad:          { value: "LC-39B",        state: "nominal" },
+    orbit:        { value: "Translunar",    state: "nominal" },
+    window:       { value: "Launched",      state: "go"      },
+    holdReason:      "",
+    weatherConcerns: null,
+    lastUpdated:  new Date("2026-04-01T22:35:00Z"),
+  };
 
-  const fetchLL2 = useCallback(async () => {
-    setLl2Loading(true);
-    setLl2Error(null);
-    try {
-      const res = await fetch(LL2_URL, { signal: AbortSignal.timeout(15000) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      const launch = data.results?.find(r =>
-        r.name?.toLowerCase().includes("artemis ii") || r.name?.toLowerCase().includes("artemis 2")
-      ) || data.results?.[0] || null;
-      if (launch) setLl2Status(mapLL2ToStatus(launch));
-      setLl2LastFetch(new Date());
-    } catch (err) {
-      console.error("[LL2]", err);
-      setLl2Error(err.message);
-    } finally {
-      setLl2Loading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchLL2();
-    const id = setInterval(fetchLL2, LL2_POLL_MS);
-    return () => clearInterval(id);
-  }, []); // eslint-disable-line
-
-  return { ll2Status, ll2Loading, ll2Error, ll2LastFetch, refetch: fetchLL2 };
+  return {
+    ll2Status:    staticStatus,
+    ll2Loading:   false,
+    ll2Error:     null,
+    ll2LastFetch: new Date("2026-04-01T22:35:00Z"),
+    refetch:      () => {},
+  };
 }
 
 // ─── KSC Weather Hook ─────────────────────────────────────────────────────
@@ -596,142 +568,6 @@ function KSCWeatherPanel({ wx }) {
           Updated {lastFetch.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })} · Pad 39B
         </div>
       )}
-    </div>
-  );
-}
-
-// ─── JPL Horizons ─────────────────────────────────────────────────────────
-const HORIZONS_POLL_MS = 10 * 60 * 1000;
-
-async function fetchHorizons() {
-  const now  = new Date();
-  const stop = new Date(now.getTime() + 60000);
-  const pad  = (d) => {
-    const y  = d.getUTCFullYear();
-    const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
-    const dy = String(d.getUTCDate()).padStart(2, "0");
-    const h  = String(d.getUTCHours()).padStart(2, "0");
-    const mi = String(d.getUTCMinutes()).padStart(2, "0");
-    return `${y}-${mo}-${dy} ${h}:${mi}`;
-  };
-  const query = [
-    "format=json", "COMMAND='301'", "OBJ_DATA='NO'", "MAKE_EPHEM='YES'",
-    "EPHEM_TYPE='OBSERVER'", "CENTER='500@399'",
-    `START_TIME='${pad(now)}'`, `STOP_TIME='${pad(stop)}'`,
-    "STEP_SIZE='1m'", "QUANTITIES='20'", "CSV_FORMAT='NO'", "CAL_FORMAT='CAL'",
-  ].join("&");
-
-  const horizonsUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?${query}`;
-  const proxies = [
-    `https://corsproxy.io/?${encodeURIComponent(horizonsUrl)}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(horizonsUrl)}`,
-  ];
-
-  for (const proxyUrl of proxies) {
-    try {
-      const res  = await fetch(proxyUrl, { signal: AbortSignal.timeout(20000) });
-      const text = await res.text();
-      if (!text.includes("$$SOE")) continue;
-      try { return JSON.parse(text); } catch { return { result: text }; }
-    } catch (e) {
-      console.warn("[Horizons] proxy failed:", e.message);
-    }
-  }
-  throw new Error("All Horizons proxies failed");
-}
-
-function parseHorizons(data) {
-  try {
-    const result = data.result || "";
-    const soe = result.indexOf("$$SOE");
-    const eoe = result.indexOf("$$EOE");
-    if (soe === -1 || eoe === -1) return null;
-    const block = result.slice(soe + 5, eoe).trim();
-    const lines = block.split("\n").map(l => l.trim()).filter(Boolean);
-    if (!lines.length) return null;
-    const dataLine    = lines[0];
-    const withoutDate = dataLine.replace(/^\d{4}-\w{3}-\d{2}\s+\d{2}:\d{2}(?::\d{2})?\s*/, "").trim();
-    const tokens      = withoutDate.split(/\s+/).filter(t => /^[+-]?\d+\.?\d*([Ee][+-]?\d+)?$/.test(t));
-    if (tokens.length < 2) return null;
-    const rangeRaw = parseFloat(tokens[tokens.length - 2]);
-    const rrRaw    = parseFloat(tokens[tokens.length - 1]);
-    if (isNaN(rangeRaw) || isNaN(rrRaw)) return null;
-    const AU_TO_KM = 149597870.7;
-    const rangeKm  = rangeRaw < 1000 ? rangeRaw * AU_TO_KM : rangeRaw;
-    const rrKms    = rrRaw;
-    if (rangeKm < 100000) return null;
-    return { rangeKm, rrKms };
-  } catch (e) {
-    console.error("[Horizons] parse error:", e);
-    return null;
-  }
-}
-
-function useHorizons() {
-  const [data,      setData]      = useState(null);
-  const [loading,   setLoading]   = useState(false);
-  const [error,     setError]     = useState(null);
-  const [lastFetch, setLastFetch] = useState(null);
-
-  const fetch_ = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const raw    = await fetchHorizons();
-      const parsed = parseHorizons(raw);
-      if (parsed) setData(parsed);
-      setLastFetch(new Date());
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetch_();
-    const id = setInterval(fetch_, HORIZONS_POLL_MS);
-    return () => clearInterval(id);
-  }, []); // eslint-disable-line
-
-  return { data, loading, error, lastFetch, refetch: fetch_ };
-}
-
-// ─── Horizons Panel ───────────────────────────────────────────────────────
-function HorizonsPanel({ horizons }) {
-  const { data: d, loading, error, lastFetch, refetch } = horizons;
-  const fmtKm  = (km) => km ? `${Math.round(km).toLocaleString()} km` : "—";
-  const fmtKms = (v)  => v  ? `${v.toFixed(2)} km/s` : "—";
-  const rows = [
-    { label: "Moon dist",  value: fmtKm(d?.rangeKm),  state: "nominal" },
-    { label: "Range rate", value: fmtKms(d?.rrKms),   state: "nominal" },
-  ];
-  return (
-    <div className="mc-sidebar-section">
-      <div className="mc-section-header">
-        <div className="mc-section-title">Trajectory · JPL</div>
-        {loading && <span className="mc-loading-dot">●</span>}
-        {d && !error && <span className="mc-section-badge live">LIVE</span>}
-        {error && <span className="mc-section-badge" style={{ color: "var(--color-red)" }}>ERR</span>}
-        <div style={{ marginLeft: "auto" }}>
-          <button className="mc-btn-icon" onClick={refetch} disabled={loading} title="Refresh Horizons">
-            <span className="material-symbols-outlined" style={{ fontSize: 15 }}>refresh</span>
-          </button>
-        </div>
-      </div>
-      <div className="flex-col gap-12">
-        {rows.map(item => (
-          <div key={item.label} className="mc-status-row">
-            <span className="mc-status-label">{item.label}</span>
-            <div className="mc-status-value">
-              <span className={`mc-status-dot ${item.state}`} />
-              <span className="mc-status-text">{item.value}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-      {lastFetch && <div className="mc-sync-time">Horizons {lastFetch.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</div>}
-      {error && <div className="mc-sync-time" style={{ color: "var(--color-red)" }}>Horizons unavailable</div>}
     </div>
   );
 }
@@ -1117,7 +953,6 @@ export default function MissionControl() {
   const nasaData = useNASALiveData();
   const ll2      = useLL2LaunchData();
   const wx       = useKSCWeather();
-  const horizons = useHorizons();
 
   useEffect(() => {
     localStorage.setItem("mc-saved-streams", JSON.stringify(streams));
@@ -1146,7 +981,6 @@ export default function MissionControl() {
     <>
       <MissionStatusPanel ll2={ll2} />
       <KSCWeatherPanel wx={wx} />
-      <HorizonsPanel horizons={horizons} />
       <MilestonesTimeline targetOverride={targetOverride} />
 
       <div className="mc-sidebar-section" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>

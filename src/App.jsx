@@ -348,9 +348,14 @@ function parseNASARSS(data) {
     // rss2json returns an array of item objects directly
     if (Array.isArray(data)) {
       return data.map((item) => ({
-        time: item.pubDate
-          ? new Date(item.pubDate + " UTC").toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" }) + " ET"
-          : "",
+      time: item.pubDate
+        ? (() => {
+            // rss2json returns "YYYY-MM-DD HH:MM:SS" — convert to ISO format for cross-browser compat
+            const iso = item.pubDate.replace(" ", "T") + "Z";
+            const d = new Date(iso);
+            return isNaN(d.getTime()) ? "" : d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" }) + " ET";
+          })()
+        : "",
         headline: (item.title || "").substring(0, 100),
         detail:   (item.description || "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().substring(0, 220),
       })).filter(u => u.headline);

@@ -4,6 +4,9 @@
   "version": "0.0.0",
   "homepage": "https://rhemzema.github.io/mission-control/",
   "type": "module",
+  "engines": {
+    "node": "18.x"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",

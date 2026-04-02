@@ -169,7 +169,7 @@ html, body, #root {
     gap: 0;
   }
 
-  .mc-header-left { display: none; }
+  .mc-header-left { display: none !important; }
 
   .mc-header-center {
     flex: 1;
@@ -251,8 +251,9 @@ html, body, #root {
 
 @media (max-width: 767px) {
   .mc-header-center {
-    gap: 0;
-    justify-content: flex-end;
+    flex: 0 0 auto;
+    justify-content: flex-start;
+    gap: 10px;
   }
 }
 
@@ -630,8 +631,14 @@ html, body, #root {
 }
 
 @media (max-width: 767px) {
-  .mc-countdown { gap: 0; }
-  .mc-window-bar { display: none; }
+  .mc-clock { display: none; }
+  .mc-countdown { gap: 30px; }
+  .mc-window-bar {
+    min-width: 100px;
+  }
+  .mc-window-bar .font-mono[style] {
+    font-size: 7px !important;
+  }
 }
 
 .mc-countdown-display {

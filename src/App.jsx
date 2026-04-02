@@ -1131,13 +1131,11 @@ export default function MissionControl() {
         </div>
 
         <div className="mc-header-center">
-          {/* Mobile: compact mission label + countdown in one row */}
-          <div className="mc-mobile-header-brand mc-show-mobile">
-            <span className="mc-mobile-mission-label">ARTEMIS II</span>
-          </div>
           <CountdownTimer targetOverride={targetOverride} onOverride={setTargetOverride} />
           <div className="mc-divider-v mc-hide-mobile" />
-          <StatusClock className="mc-hide-mobile" />
+          <div className="mc-hide-mobile">
+            <StatusClock />
+          </div>
         </div>
 
         <div className="mc-header-right">

@@ -456,6 +456,10 @@ html, body, #root {
   transition: opacity 0.15s;
 }
 
+@media (max-width: 767px) {
+  .mc-drag-handle-zone { display: none; }
+}
+
 .mc-stream-bar:hover .mc-drag-handle-zone { opacity: 1; }
 .mc-drag-handle-zone:active { cursor: grabbing; }
 

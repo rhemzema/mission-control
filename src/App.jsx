@@ -795,7 +795,9 @@ function LiveUpdatesFeed({ updates, loading, isLive, fetchError, lastUpdated, on
 function DraggableStreamGrid({ streams, setStreams, layout, iframeKey, onToggleMute, onRemove }) {
   const [previewStreams, setPreviewStreams] = useState(streams);
   const [draggingId,    setDraggingId]     = useState(null);
-  const stableIdsRef = useRef(streams.map((s) => s.id));
+  const stableIdsRef  = useRef(streams.map((s) => s.id));
+  const touchDragRef  = useRef({ active: false, id: null, startX: 0, startY: 0 });
+  const containerRef  = useRef(null);
 
   const currentIds = streams.map((s) => s.id);
   stableIdsRef.current = stableIdsRef.current.filter((id) => currentIds.includes(id));
@@ -841,6 +843,7 @@ function DraggableStreamGrid({ streams, setStreams, layout, iframeKey, onToggleM
     return s;
   };
 
+  // ── Mouse drag handlers ──────────────────────────────────────────────
   const handleDragStart = useCallback((e, s) => {
     setDraggingId(s.id);
     e.dataTransfer.effectAllowed = "move";
@@ -872,6 +875,66 @@ function DraggableStreamGrid({ streams, setStreams, layout, iframeKey, onToggleM
     setDraggingId(null);
   }, [previewStreams, setStreams]);
 
+  // ── Touch drag handlers ──────────────────────────────────────────────
+  const getElementIdAtPoint = useCallback((x, y, excludeId) => {
+    // Temporarily hide the dragging element so elementFromPoint finds the target beneath
+    const draggingEl = containerRef.current?.querySelector(`[data-stream-id="${excludeId}"]`);
+    if (draggingEl) draggingEl.style.pointerEvents = "none";
+    const el = document.elementFromPoint(x, y);
+    if (draggingEl) draggingEl.style.pointerEvents = "";
+    if (!el) return null;
+    const wrapper = el.closest("[data-stream-id]");
+    return wrapper ? wrapper.getAttribute("data-stream-id") : null;
+  }, []);
+
+  const handleTouchStart = useCallback((e, streamId) => {
+    const touch = e.touches[0];
+    touchDragRef.current = {
+      active: false, // becomes true after sufficient movement
+      id: streamId,
+      startX: touch.clientX,
+      startY: touch.clientY,
+    };
+  }, []);
+
+  const handleTouchMove = useCallback((e) => {
+    const ref = touchDragRef.current;
+    if (!ref.id) return;
+    const touch = e.touches[0];
+    const dx = Math.abs(touch.clientX - ref.startX);
+    const dy = Math.abs(touch.clientY - ref.startY);
+
+    // Activate drag after 8px movement
+    if (!ref.active && (dx > 8 || dy > 8)) {
+      ref.active = true;
+      setDraggingId(ref.id);
+    }
+
+    if (!ref.active) return;
+    e.preventDefault(); // prevent scroll while dragging
+
+    const targetId = getElementIdAtPoint(touch.clientX, touch.clientY, ref.id);
+    if (targetId && targetId !== ref.id) {
+      setPreviewStreams((prev) => {
+        const fromIdx = prev.findIndex((x) => x.id === ref.id);
+        const toIdx   = prev.findIndex((x) => x.id === targetId);
+        if (fromIdx === -1 || toIdx === -1) return prev;
+        const next = [...prev];
+        const [moved] = next.splice(fromIdx, 1);
+        next.splice(toIdx, 0, moved);
+        return next;
+      });
+    }
+  }, [getElementIdAtPoint]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (touchDragRef.current.active) {
+      setStreams(previewStreams);
+    }
+    touchDragRef.current = { active: false, id: null, startX: 0, startY: 0 };
+    setDraggingId(null);
+  }, [previewStreams, setStreams]);
+
   if (previewStreams.length === 0) return (
     <div className="mc-empty-state">
       <span className="material-symbols-outlined">satellite_alt</span>
@@ -880,7 +943,14 @@ function DraggableStreamGrid({ streams, setStreams, layout, iframeKey, onToggleM
   );
 
   return (
-    <div style={getGridStyle()} onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
+    <div
+      ref={containerRef}
+      style={getGridStyle()}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={handleDrop}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
       {stableIdsRef.current.map((id) => {
         const streamData  = streams.find((s) => s.id === id);
         if (!streamData) return null;
@@ -889,6 +959,7 @@ function DraggableStreamGrid({ streams, setStreams, layout, iframeKey, onToggleM
         return (
           <div
             key={id}
+            data-stream-id={id}
             style={{ ...getItemStyle(visualIndex, previewStreams.length), order: visualIndex }}
             className={`mc-stream-wrapper ${draggingId === id ? "is-active-drag" : ""}`}
             draggable
@@ -896,6 +967,7 @@ function DraggableStreamGrid({ streams, setStreams, layout, iframeKey, onToggleM
             onDragOver={(e) => handleDragOver(e, id)}
             onDrop={handleDrop}
             onDragEnd={() => setDraggingId(null)}
+            onTouchStart={(e) => handleTouchStart(e, id)}
           >
             <StreamCard
               stream={streamData}

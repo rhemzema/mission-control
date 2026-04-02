@@ -8,10 +8,10 @@
     "node": "22.x"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+  "dev": "vite",
+  "build": "npx vite build",
+  "predeploy": "npm run build",
+  "deploy": "gh-pages -d dist"
   },
   "dependencies": {
     "react": "^19.2.4",

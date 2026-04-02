@@ -640,19 +640,22 @@ function MissionStatusPanel({ ll2 }) {
 
 // ─── Mission Milestones ───────────────────────────────────────────────────
 const MILESTONES = [
-  { id: "tanking",    label: "Propellant Loading",  t: "2026-04-01T16:30:00-04:00" },
-  { id: "t-4hold",    label: "T-4 Min Hold",         t: "2026-04-01T18:20:00-04:00" },
-  { id: "terminal",   label: "Terminal Count",        t: "2026-04-01T18:23:00-04:00" },
-  { id: "liftoff",    label: "Liftoff",               t: "2026-04-01T18:35:00-04:00" },
-  { id: "maxq",       label: "Max-Q",                 t: "2026-04-01T18:37:00-04:00" },
-  { id: "beco",       label: "Booster Cut-Off",       t: "2026-04-01T18:39:00-04:00" },
-  { id: "seco1",      label: "Core SECO",             t: "2026-04-01T18:47:00-04:00" },
-  { id: "icps",       label: "ICPS Ignition",         t: "2026-04-01T18:48:00-04:00" },
-  { id: "tli",        label: "Trans-Lunar Injection", t: "2026-04-01T20:15:00-04:00" },
-  { id: "sep",        label: "Orion Separation",      t: "2026-04-01T20:45:00-04:00" },
-  { id: "lunar",      label: "Lunar Flyby",           t: "2026-04-07T00:00:00-04:00" },
-  { id: "return",     label: "Return Burn",           t: "2026-04-09T00:00:00-04:00" },
-  { id: "splashdown", label: "Splashdown",            t: "2026-04-11T12:00:00-04:00" },
+  { id: "tanking",    label: "Propellant Loading",      t: "2026-04-01T16:30:00-04:00" },
+  { id: "t-4hold",    label: "T-4 Min Hold",            t: "2026-04-01T18:20:00-04:00" },
+  { id: "terminal",   label: "Terminal Count",          t: "2026-04-01T18:23:00-04:00" },
+  { id: "liftoff",    label: "Liftoff",                 t: "2026-04-01T18:35:00-04:00" },
+  { id: "maxq",       label: "Max-Q",                   t: "2026-04-01T18:37:00-04:00" },
+  { id: "beco",       label: "Booster Cut-Off",         t: "2026-04-01T18:39:00-04:00" },
+  { id: "seco1",      label: "Core SECO",               t: "2026-04-01T18:47:00-04:00" },
+  { id: "icps",       label: "ICPS Ignition",           t: "2026-04-01T18:48:00-04:00" },
+  { id: "prm",        label: "Perigee Raise Burn",      t: "2026-04-01T20:00:00-04:00" },
+  { id: "arb",        label: "Apogee Raise Burn",       t: "2026-04-01T21:30:00-04:00" },
+  { id: "prox",       label: "Proximity Operations",    t: "2026-04-02T01:00:00-04:00" },
+  { id: "prm2",       label: "Perigee Raise Burn 2",    t: "2026-04-02T08:19:00-04:00" },
+  { id: "tli",        label: "Trans-Lunar Injection",   t: "2026-04-02T21:00:00-04:00" },
+  { id: "lunar",      label: "Lunar Flyby",             t: "2026-04-07T00:00:00-04:00" },
+  { id: "return",     label: "Return Burn",             t: "2026-04-09T00:00:00-04:00" },
+  { id: "splashdown", label: "Splashdown",              t: "2026-04-11T12:00:00-04:00" },
 ];
 
 function MilestonesTimeline({ targetOverride }) {

@@ -321,8 +321,9 @@ function makeProxyUrls(targetUrl) {
   const bust = `_cb=${Date.now()}`;
   const bustedTarget = `${targetUrl}${targetUrl.includes("?") ? "&" : "?"}${bust}`;
   return [
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(bustedTarget)}`,
     `https://corsproxy.io/?${encodeURIComponent(bustedTarget)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(bustedTarget)}`,
+    `https://thingproxy.freeboard.io/fetch/${encodeURIComponent(bustedTarget)}`,
     `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(bustedTarget)}`,
   ];
 }

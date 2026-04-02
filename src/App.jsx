@@ -89,12 +89,7 @@ function CountdownTimer({ targetOverride, onOverride }) {
     else { setHoldActive(true); setHoldFrozen(target - now); }
   };
 
-  const windowTotal   = new Date(WINDOW_CLOSE).getTime() - new Date(WINDOW_OPEN).getTime();
-  const windowElapsed = now - new Date(WINDOW_OPEN).getTime();
-  const windowPct     = Math.max(0, Math.min(100, (windowElapsed / windowTotal) * 100));
-  const withinWindow  = windowElapsed >= 0 && windowElapsed <= windowTotal;
-  const beforeWindow  = windowElapsed < 0;
-  const mode          = holdActive ? "hold" : launched ? "launched" : "waiting";
+  const mode = holdActive ? "hold" : launched ? "launched" : "waiting";
 
   return (
     <div className="mc-countdown">
@@ -272,8 +267,8 @@ function StreamCard({ stream, iframeKey, onToggleMute, onRemove, isDragging, isA
 
 // ─── Add Stream Modal ─────────────────────────────────────────────────────
 function AddStreamModal({ onClose, onAdd }) {
-  const [label, setLabel]           = useState("");
-  const [url, setUrl]               = useState("");
+  const [label, setLabel] = useState("");
+  const [url, setUrl]     = useState("");
 
   const handleAdd = () => {
     if (!url.trim()) return;
@@ -290,137 +285,76 @@ function AddStreamModal({ onClose, onAdd }) {
     <div className="mc-modal-backdrop" onClick={onClose}>
       <div className="mc-modal" onClick={(e) => e.stopPropagation()}>
         <div className="mc-modal-header">
-          <div className="mc-modal-title">Manage Streams</div>
+          <div className="mc-modal-title">Add Stream</div>
         </div>
         <div className="mc-modal-body">
-            <>
-              <div style={{ marginBottom: 14 }}>
-                <label className="mc-field-label">Label</label>
-                <input className="mc-input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. CNN Coverage" />
-              </div>
-              <div style={{ marginBottom: 18 }}>
-                <label className="mc-field-label">YouTube URL or Embed Link</label>
-                <input className="mc-input" value={url} onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://youtube.com/watch?v=..." onKeyDown={(e) => e.key === "Enter" && handleAdd()} />
-              </div>
-              <button className={`mc-btn-submit ${url.trim() ? "enabled" : "disabled"}`} onClick={handleAdd} disabled={!url.trim()}>
-                Add Stream
-              </button>
-            </>
+          <div style={{ marginBottom: 14 }}>
+            <label className="mc-field-label">Label</label>
+            <input className="mc-input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. CNN Coverage" />
+          </div>
+          <div style={{ marginBottom: 18 }}>
+            <label className="mc-field-label">YouTube URL or Embed Link</label>
+            <input className="mc-input" value={url} onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://youtube.com/watch?v=..." onKeyDown={(e) => e.key === "Enter" && handleAdd()} />
+          </div>
+          <button className={`mc-btn-submit ${url.trim() ? "enabled" : "disabled"}`} onClick={handleAdd} disabled={!url.trim()}>
+            Add Stream
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-// ─── NASA Blog Scraper ────────────────────────────────────────────────────
-const NASA_BLOG_URL = "https://www.nasa.gov/blogs/missions/2026/04/01/live-artemis-ii-launch-day-updates/";
-const REFRESH_MS    = 90_000;
+// ─── NASA RSS Feed ────────────────────────────────────────────────────────
+const NASA_RSS_URL = "https://blogs.nasa.gov/artemis/feed/";
+const REFRESH_MS = 5 * 60 * 1000;
 
-function makeProxyUrls(targetUrl) {
-  const bust = `_cb=${Date.now()}`;
-  const bustedTarget = `${targetUrl}${targetUrl.includes("?") ? "&" : "?"}${bust}`;
-  return [
-    `https://corsproxy.io/?${encodeURIComponent(bustedTarget)}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(bustedTarget)}`,
-    `https://thingproxy.freeboard.io/fetch/${encodeURIComponent(bustedTarget)}`,
-    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(bustedTarget)}`,
+async function fetchNASARSS() {
+  const proxies = [
+    `https://corsproxy.io/?${encodeURIComponent(NASA_RSS_URL)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(NASA_RSS_URL)}`,
   ];
-}
-
-async function fetchNASABlog() {
-  const urls = makeProxyUrls(NASA_BLOG_URL);
-  for (const url of urls) {
+  for (const url of proxies) {
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(14000), cache: "no-store", headers: { "Cache-Control": "no-cache" } });
+      const res  = await fetch(url, { signal: AbortSignal.timeout(14000), cache: "no-store" });
       if (!res.ok) continue;
-      const html = await res.text();
-      if (html.length < 1000 || !html.toLowerCase().includes("artemis")) continue;
-      return html;
+      const text = await res.text();
+      if (!text.includes("<item>")) continue;
+      return text;
     } catch (err) {
-      console.warn("[NASA scraper] proxy failed:", url, err?.message);
-      continue;
+      console.warn("[RSS] proxy failed:", err?.message);
     }
   }
   return null;
 }
 
-function parseNASAUpdates(html) {
+function parseNASARSS(xml) {
   try {
-    const doc = new DOMParser().parseFromString(html, "text/html");
-    const candidates = Array.from(doc.querySelectorAll(
-      ".entry-content p, .post-content p, article p, .blog-post p, .wp-block-post-content p, main p, #content p, p"
-    ));
-    const seen  = new Set();
-    const paras = candidates.filter((el) => {
-      const t = (el.textContent || "").trim();
-      if (!t || seen.has(t)) return false;
-      seen.add(t);
-      return true;
-    });
-    const updates = [];
-    const timeRe = /^(\d{1,2}(?::\d{2})?\s*(?:a\.m\.|p\.m\.|am|pm)|(?:[01]?\d|2[0-3]):\d{2}(?:\s*(?:ET|UTC|EDT|EST))?)/i;
-    for (let i = 0; i < paras.length && updates.length < 10; i++) {
-      const text  = (paras[i].textContent || "").trim();
-      const match = text.match(timeRe);
-      if (!match) continue;
-      const time = match[1].trim();
-      let body   = text.slice(match[0].length).replace(/^[\s:–—-]+/, "").trim();
-      let j      = i + 1;
-      while (j < paras.length) {
-        const nextText = (paras[j].textContent || "").trim();
-        if (nextText.match(timeRe)) break;
-        if (nextText.length > 10 && nextText.length < 600) body += " " + nextText;
-        j++;
-        if (body.length > 500) break;
-      }
-      if (body.length < 8) continue;
-      const sentences = body.split(/(?<=[.!?])\s+/);
-      const headline  = (sentences[0] || body).substring(0, 100);
-      const detail    = sentences.slice(1, 3).join(" ").substring(0, 220);
-      const timeLabel = /ET|UTC|EDT|EST/i.test(time) ? time : `${time} ET`;
-      updates.push({ time: timeLabel, headline, detail });
-    }
-    return updates;
+    const doc   = new DOMParser().parseFromString(xml, "text/xml");
+    const items = Array.from(doc.querySelectorAll("item")).slice(0, 10);
+    return items.map((item) => {
+      const title   = item.querySelector("title")?.textContent?.trim() || "";
+      const pubDate = item.querySelector("pubDate")?.textContent?.trim() || "";
+      const desc    = item.querySelector("description")?.textContent?.trim() || "";
+      const stripped = desc.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+      const timeLabel = pubDate
+        ? new Date(pubDate).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" }) + " ET"
+        : "";
+      return {
+        time:     timeLabel,
+        headline: title.substring(0, 100),
+        detail:   stripped.substring(0, 220),
+      };
+    }).filter(u => u.headline);
   } catch (e) {
-    console.error("[NASA scraper] parse error:", e);
+    console.error("[RSS] parse error:", e);
     return [];
   }
 }
 
-function extractStatusFromUpdates(updates) {
-  const allText = updates.map((u) => `${u.headline} ${u.detail}`).join(" ").toLowerCase();
-  const tanking =
-    allText.includes("replenish") ? "Replenish" :
-    allText.includes("topping")   ? "Topping"   :
-    allText.includes("fast fill") ? "Fast Fill" :
-    allText.includes("slow fill") ? "Slow Fill" :
-    allText.includes("chilldown") ? "Chilldown" :
-    allText.includes("loading")   ? "Loading"   : "In Progress";
-  const weatherMatch = allText.match(/(\d{1,3})\s*%\s*(?:go|favorable)/i);
-  const weather      = weatherMatch ? `${weatherMatch[1]}% GO` : "80% GO";
-  const crew =
-    allText.includes("ingress")                                    ? "Ingress"  :
-    allText.includes("suit")                                       ? "Suit-up"  :
-    allText.includes("walkout") || allText.includes("walk out")    ? "Walkout"  :
-    allText.includes("arrived") || allText.includes("at pad")      ? "At Pad"   :
-    allText.includes("wake")                                       ? "Awake"    : "Preparing";
-  const hasHold  = /\bhold\b/.test(allText) && !allText.includes("hold-fire");
-  const hasScrub = allText.includes("scrub");
-  return {
-    vehicle:    { value: "SLS Block 1",              state: hasScrub ? "error" : "nominal" },
-    spacecraft: { value: "Orion",                    state: "nominal" },
-    weather:    { value: weather,                    state: weather.includes("NO") ? "warning" : "go" },
-    range:      { value: hasHold ? "Hold" : "Clear", state: hasHold ? "warning" : "go" },
-    tanking:    { value: tanking,                    state: "go" },
-    crew:       { value: crew,                       state: "go" },
-  };
-}
-
-// ─── NASA Live Data Hook ──────────────────────────────────────────────────
 function useNASALiveData() {
   const [updates,     setUpdates]     = useState(DEFAULT_UPDATES);
-  const [status,      setStatus]      = useState(null);
   const [lastFetch,   setLastFetch]   = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [loading,     setLoading]     = useState(false);
@@ -432,15 +366,14 @@ function useNASALiveData() {
     setLoading(true);
     setFetchError(false);
     try {
-      const html = await fetchNASABlog();
-      if (html) {
-        const parsed = parseNASAUpdates(html);
+      const xml = await fetchNASARSS();
+      if (xml) {
+        const parsed = parseNASARSS(xml);
         if (parsed.length > 0) {
           const topHeadline = parsed[0].headline;
           if (topHeadline !== prevHeadlineRef.current) {
             prevHeadlineRef.current = topHeadline;
             setUpdates(parsed);
-            setStatus(extractStatusFromUpdates(parsed));
             setLastUpdated(new Date());
           }
           setIsLive(true);
@@ -450,7 +383,7 @@ function useNASALiveData() {
         setFetchError(true);
       }
     } catch (err) {
-      console.error("[NASA hook] unexpected error:", err);
+      console.error("[RSS hook] error:", err);
       setFetchError(true);
     } finally {
       setLoading(false);
@@ -463,7 +396,7 @@ function useNASALiveData() {
     return () => clearInterval(id);
   }, []); // eslint-disable-line
 
-  return { updates, status, lastFetch, lastUpdated, loading, isLive, fetchError, refresh };
+  return { updates, status: null, lastFetch, lastUpdated, loading, isLive, fetchError, refresh };
 }
 
 // ─── LL2 Launch Data Hook ─────────────────────────────────────────────────
@@ -682,18 +615,10 @@ async function fetchHorizons() {
     return `${y}-${mo}-${dy} ${h}:${mi}`;
   };
   const query = [
-    "format=json",
-    "COMMAND='301'",
-    "OBJ_DATA='NO'",
-    "MAKE_EPHEM='YES'",
-    "EPHEM_TYPE='OBSERVER'",
-    "CENTER='500@399'",
-    `START_TIME='${pad(now)}'`,
-    `STOP_TIME='${pad(stop)}'`,
-    "STEP_SIZE='1m'",
-    "QUANTITIES='20'",
-    "CSV_FORMAT='NO'",
-    "CAL_FORMAT='CAL'",
+    "format=json", "COMMAND='301'", "OBJ_DATA='NO'", "MAKE_EPHEM='YES'",
+    "EPHEM_TYPE='OBSERVER'", "CENTER='500@399'",
+    `START_TIME='${pad(now)}'`, `STOP_TIME='${pad(stop)}'`,
+    "STEP_SIZE='1m'", "QUANTITIES='20'", "CSV_FORMAT='NO'", "CAL_FORMAT='CAL'",
   ].join("&");
 
   const horizonsUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?${query}`;
@@ -721,27 +646,19 @@ function parseHorizons(data) {
     const soe = result.indexOf("$$SOE");
     const eoe = result.indexOf("$$EOE");
     if (soe === -1 || eoe === -1) return null;
-
     const block = result.slice(soe + 5, eoe).trim();
     const lines = block.split("\n").map(l => l.trim()).filter(Boolean);
     if (!lines.length) return null;
-
     const dataLine    = lines[0];
     const withoutDate = dataLine.replace(/^\d{4}-\w{3}-\d{2}\s+\d{2}:\d{2}(?::\d{2})?\s*/, "").trim();
     const tokens      = withoutDate.split(/\s+/).filter(t => /^[+-]?\d+\.?\d*([Ee][+-]?\d+)?$/.test(t));
-
     if (tokens.length < 2) return null;
-
     const rangeRaw = parseFloat(tokens[tokens.length - 2]);
     const rrRaw    = parseFloat(tokens[tokens.length - 1]);
-
     if (isNaN(rangeRaw) || isNaN(rrRaw)) return null;
-
-    // QUANTITIES=20 returns delta in AU — convert to km
     const AU_TO_KM = 149597870.7;
     const rangeKm  = rangeRaw < 1000 ? rangeRaw * AU_TO_KM : rangeRaw;
-    const rrKms    = rrRaw; // deldot already in km/s
-
+    const rrKms    = rrRaw;
     if (rangeKm < 100000) return null;
     return { rangeKm, rrKms };
   } catch (e) {
@@ -784,10 +701,10 @@ function useHorizons() {
 function HorizonsPanel({ horizons }) {
   const { data: d, loading, error, lastFetch, refetch } = horizons;
   const fmtKm  = (km) => km ? `${Math.round(km).toLocaleString()} km` : "—";
-  const fmtKms = (v)  => v  ? `${v.toFixed(2)} km/s`                  : "—";
+  const fmtKms = (v)  => v  ? `${v.toFixed(2)} km/s` : "—";
   const rows = [
-    { label: "Moon dist", value: fmtKm(d?.rangeKm),  state: "nominal" },
-    { label: "Range rate", value: fmtKms(d?.rrKms),  state: "nominal" },
+    { label: "Moon dist",  value: fmtKm(d?.rangeKm),  state: "nominal" },
+    { label: "Range rate", value: fmtKms(d?.rrKms),   state: "nominal" },
   ];
   return (
     <div className="mc-sidebar-section">
@@ -813,14 +730,8 @@ function HorizonsPanel({ horizons }) {
           </div>
         ))}
       </div>
-      {lastFetch && (
-        <div className="mc-sync-time">
-          Horizons {lastFetch.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
-        </div>
-      )}
-      {error && (
-        <div className="mc-sync-time" style={{ color: "var(--color-red)" }}>Horizons unavailable</div>
-      )}
+      {lastFetch && <div className="mc-sync-time">Horizons {lastFetch.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</div>}
+      {error && <div className="mc-sync-time" style={{ color: "var(--color-red)" }}>Horizons unavailable</div>}
     </div>
   );
 }
@@ -918,8 +829,7 @@ function MilestonesTimeline({ targetOverride }) {
   const originalLiftoffMs = new Date(MILESTONES.find(m => m.id === "liftoff").t).getTime();
   const adjustedLiftoffMs = targetOverride ? new Date(targetOverride).getTime() : originalLiftoffMs;
   const offset            = adjustedLiftoffMs - originalLiftoffMs;
-  const liftoffMs         = adjustedLiftoffMs;
-  const launched          = now >= liftoffMs;
+  const launched          = now >= adjustedLiftoffMs;
 
   const activeIdx = MILESTONES.reduce((acc, m, i) =>
     now >= new Date(m.t).getTime() + offset ? i : acc, -1);
@@ -1166,6 +1076,23 @@ function DraggableStreamGrid({ streams, setStreams, layout, iframeKey, onToggleM
   );
 }
 
+// ─── Mobile Bottom Sheet Sidebar ─────────────────────────────────────────
+function MobileSidebar({ open, onClose, children }) {
+  return (
+    <>
+      {open && <div className="mc-mobile-backdrop" onClick={onClose} />}
+      <div className={`mc-mobile-sheet ${open ? "is-open" : ""}`}>
+        <div className="mc-mobile-sheet-handle" onClick={onClose}>
+          <div className="mc-mobile-sheet-pill" />
+        </div>
+        <div className="mc-mobile-sheet-content">
+          {children}
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── Main App ─────────────────────────────────────────────────────────────
 export default function MissionControl() {
   const [streams, setStreams] = useState(() => {
@@ -1183,6 +1110,7 @@ export default function MissionControl() {
   const [sidebarOpen,    setSidebarOpen]    = useState(true);
   const [sidebarClosing, setSidebarClosing] = useState(false);
   const [sidebarOpening, setSidebarOpening] = useState(false);
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const [targetOverride, setTargetOverride] = useState(null);
   const [iframeKey,      setIframeKey]      = useState(0);
 
@@ -1213,7 +1141,61 @@ export default function MissionControl() {
       setTimeout(() => setSidebarOpening(false), 20);
     }
   };
-  // edit
+
+  const sidebarContent = (
+    <>
+      <MissionStatusPanel ll2={ll2} />
+      <KSCWeatherPanel wx={wx} />
+      <HorizonsPanel horizons={horizons} />
+      <MilestonesTimeline targetOverride={targetOverride} />
+
+      <div className="mc-sidebar-section" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+        <div className="mc-section-title" style={{ marginBottom: 14 }}>Crew</div>
+        <div className="mc-crew-list">
+          {CREW.map((c) => (
+            <div key={c.name} className="flex-col" style={{ gap: 2, alignItems: "flex-start", width: "100%" }}>
+              <span className="mc-crew-name">{c.name}</span>
+              <span className="mc-crew-role">{c.role}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <LiveUpdatesFeed
+        updates={nasaData.updates}
+        loading={nasaData.loading}
+        isLive={nasaData.isLive}
+        fetchError={nasaData.fetchError}
+        lastUpdated={nasaData.lastUpdated}
+        onRefresh={nasaData.refresh}
+      />
+
+      <div className="mc-sidebar-section" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+        <div className="mc-section-title" style={{ marginBottom: 14 }}>Quick Links</div>
+        <div className="flex-col" style={{ gap: 9, alignItems: "flex-start", width: "100%" }}>
+          {[
+            { label: "NASA Live Blog",      url: "https://www.nasa.gov/blogs/missions/2026/04/01/live-artemis-ii-launch-day-updates/" },
+            { label: "NASA YouTube",        url: "https://www.youtube.com/@NASA" },
+            { label: "Artemis II Overview", url: "https://www.nasa.gov/artemis-ii/" },
+          ].map((l) => (
+            <a key={l.label} href={l.url} target="_blank" rel="noopener noreferrer" className="mc-link">
+              {l.label}
+              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>open_in_new</span>
+            </a>
+          ))}
+        </div>
+      </div>
+
+      <div className="mc-sidebar-footer">
+        {nasaData.fetchError
+          ? "All proxies failed. Retrying in 90s. Try manual refresh."
+          : nasaData.isLive
+            ? "Live data from NASA."
+            : "Connecting to NASA blog…"}
+      </div>
+    </>
+  );
+
   return (
     <div className="mc-app">
       <header className="mc-header">
@@ -1231,19 +1213,27 @@ export default function MissionControl() {
 
         <div className="mc-header-center">
           <CountdownTimer targetOverride={targetOverride} onOverride={setTargetOverride} />
-          <div className="mc-divider-v" />
-          <StatusClock />
+          <div className="mc-divider-v mc-hide-mobile" />
+          <StatusClock className="mc-hide-mobile" />
         </div>
 
         <div className="mc-header-right">
+          {/* Desktop: show/hide panel button */}
           <button
-            className={`mc-btn mc-btn-ghost mc-btn-sm ${sidebarOpen ? "active" : ""}`}
+            className={`mc-btn mc-btn-ghost mc-btn-sm mc-hide-mobile ${sidebarOpen ? "active" : ""}`}
             onClick={handleSidebarToggle}
           >
             <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
               {sidebarOpen ? "right_panel_close" : "right_panel_open"}
             </span>
             {sidebarOpen ? "Hide Panel" : "Show Panel"}
+          </button>
+          {/* Mobile: info button opens bottom sheet */}
+          <button
+            className="mc-btn mc-btn-ghost mc-btn-sm mc-show-mobile"
+            onClick={() => setMobilePanelOpen(true)}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>info</span>
           </button>
         </div>
       </header>
@@ -1264,17 +1254,17 @@ export default function MissionControl() {
               ))}
             </div>
             <div className="mc-action-group">
-              <button className="mc-btn mc-btn-outline mc-btn-sm" onClick={resetStreams} title="Reset to default streams">
+              <button className="mc-btn mc-btn-outline mc-btn-sm mc-hide-mobile" onClick={resetStreams} title="Reset to default streams">
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>restart_alt</span>
                 Reset Feeds
               </button>
               <button className="mc-btn mc-btn-outline mc-btn-sm" onClick={() => setIframeKey((k) => k + 1)}>
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>refresh</span>
-                Refresh Videos
+                <span className="mc-btn-label">Refresh</span>
               </button>
               <button className="mc-btn mc-btn-primary mc-btn-sm" onClick={() => setShowAdd(true)}>
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
-                Add Stream
+                <span className="mc-btn-label">Add Stream</span>
               </button>
             </div>
           </div>
@@ -1291,62 +1281,20 @@ export default function MissionControl() {
           </div>
         </div>
 
+        {/* Desktop sidebar */}
         {(sidebarOpen || sidebarClosing) && (
-          <aside className={`mc-sidebar${sidebarClosing ? " is-closing" : ""}${sidebarOpening ? " is-opening" : ""}`}>
+          <aside className={`mc-sidebar mc-hide-mobile${sidebarClosing ? " is-closing" : ""}${sidebarOpening ? " is-opening" : ""}`}>
             <div className="mc-sidebar-inner">
-              <MissionStatusPanel ll2={ll2} />
-              <KSCWeatherPanel wx={wx} />
-              <HorizonsPanel horizons={horizons} />
-              <MilestonesTimeline targetOverride={targetOverride} />
-
-              <div className="mc-sidebar-section" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
-                <div className="mc-section-title" style={{ marginBottom: 14 }}>Crew</div>
-                <div className="mc-crew-list">
-                  {CREW.map((c) => (
-                    <div key={c.name} className="flex-col" style={{ gap: 2, alignItems: "flex-start", width: "100%" }}>
-                      <span className="mc-crew-name">{c.name}</span>
-                      <span className="mc-crew-role">{c.role}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <LiveUpdatesFeed
-                updates={nasaData.updates}
-                loading={nasaData.loading}
-                isLive={nasaData.isLive}
-                fetchError={nasaData.fetchError}
-                lastUpdated={nasaData.lastUpdated}
-                onRefresh={nasaData.refresh}
-              />
-
-            <div className="mc-sidebar-section" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
-              <div className="mc-section-title" style={{ marginBottom: 14 }}>Quick Links</div>
-                <div className="flex-col" style={{ gap: 9, alignItems: "flex-start", width: "100%" }}>
-                  {[
-                    { label: "NASA Live Blog",      url: "https://www.nasa.gov/blogs/missions/2026/04/01/live-artemis-ii-launch-day-updates/" },
-                    { label: "NASA YouTube",        url: "https://www.youtube.com/@NASA" },
-                    { label: "Artemis II Overview", url: "https://www.nasa.gov/artemis-ii/" },
-                  ].map((l) => (
-                    <a key={l.label} href={l.url} target="_blank" rel="noopener noreferrer" className="mc-link">
-                      {l.label}
-                      <span className="material-symbols-outlined" style={{ fontSize: 14 }}>open_in_new</span>
-                    </a>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mc-sidebar-footer">
-                {nasaData.fetchError
-                  ? "All proxies failed. Retrying in 90s. Try manual refresh."
-                  : nasaData.isLive
-                    ? "Live data from NASA. Polling every 90s."
-                    : "Connecting to NASA blog…"}
-              </div>
+              {sidebarContent}
             </div>
           </aside>
         )}
       </div>
+
+      {/* Mobile bottom sheet */}
+      <MobileSidebar open={mobilePanelOpen} onClose={() => setMobilePanelOpen(false)}>
+        {sidebarContent}
+      </MobileSidebar>
 
       {showAdd && (
         <AddStreamModal onClose={() => setShowAdd(false)} onAdd={addStream} />

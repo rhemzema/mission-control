@@ -61,6 +61,11 @@ html, body, #root {
   to   { transform: translateY(0); }
 }
 
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
 /* ─── Design Tokens ─────────────────────────────────────────────────────── */
 :root {
   --color-bg: #08080A;
@@ -99,38 +104,10 @@ html, body, #root {
   .mc-show-mobile { display: flex !important; }
 }
 
-@media (max-width: 767px) {
-  .mc-grid-container {
-    overflow-y: auto;
-    overflow-x: hidden;
-    height: 100%;
-  }
-
-  .mc-grid-container > div {
-    display: flex !important;
-    flex-direction: column !important;
-    height: auto !important;
-    gap: 8px;
-  }
-
-  .mc-stream-wrapper {
-    width: 100% !important;
-    height: auto !important;
-    aspect-ratio: 16 / 10;
-    order: unset !important;
-    grid-column: unset !important;
-    grid-row: unset !important;
-  }
-
-  .mc-stream-card {
-    height: 100%;
-  }
-}
-
 /* ─── App Shell ─────────────────────────────────────────────────────────── */
 .mc-app {
   height: 100vh;
-  height: 100dvh; /* dynamic viewport for mobile browsers */
+  height: 100dvh;
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-sans);
@@ -156,30 +133,6 @@ html, body, #root {
   z-index: 10;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
   min-height: 72px;
-}
-
-@media (max-width: 767px) {
-  .mc-header {
-    padding: 0 14px;
-    min-height: 52px;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0;
-  }
-
-  .mc-header-left { display: none !important; }
-
-  .mc-header-center {
-    flex: 1;
-    justify-content: flex-start;
-    gap: 10px;
-  }
-
-  .mc-header-right {
-    flex-shrink: 0;
-  }
 }
 
 .mc-scanline-overlay {
@@ -236,25 +189,11 @@ html, body, #root {
   display: block;
 }
 
-@media (max-width: 767px) {
-  .mc-title    { font-size: 14px; }
-  .mc-subtitle { display: none; }
-  .mc-location { display: none; }
-}
-
 .mc-header-center {
   display: flex;
   align-items: center;
   gap: 28px;
   justify-content: center;
-}
-
-@media (max-width: 767px) {
-  .mc-header-center {
-    flex: 0 0 auto;
-    justify-content: flex-start;
-    gap: 10px;
-  }
 }
 
 .mc-header-right {
@@ -346,18 +285,10 @@ html, body, #root {
 
 .mc-btn-sm { padding: 5px 10px; font-size: 11px; }
 
-@media (max-width: 767px) {
-  .mc-btn-sm { padding: 7px 10px; font-size: 12px; }
-}
-
 /* Collapse layout button text labels on narrow screens */
 @media (max-width: 1000px) {
   .mc-layout-group .mc-btn-label { display: none; }
   .mc-layout-group .mc-btn-sm    { padding: 5px 8px; }
-}
-
-@media (max-width: 767px) {
-  .mc-layout-group { display: none; }
 }
 
 .mc-btn-icon {
@@ -404,10 +335,6 @@ html, body, #root {
   width: 100%;
 }
 
-@media (max-width: 767px) {
-  .mc-controls-bar { padding: 6px 2px; gap: 4px; }
-}
-
 .mc-layout-group {
   display: flex;
   flex-direction: row;
@@ -445,10 +372,6 @@ html, body, #root {
   gap: 0;
 }
 
-@media (max-width: 767px) {
-  .mc-streams-area { padding: 6px; }
-}
-
 .mc-grid-container {
   flex: 1;
   min-height: 0;
@@ -463,19 +386,6 @@ html, body, #root {
   gap: 16px;
   height: 100%;
   color: var(--color-text-faint);
-}
-
-@media (max-width: 767px) {
-  .mc-grid-container {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .mc-empty-state {
-    height: auto;
-    padding: 40px 0;
-  }
 }
 
 .mc-empty-state .material-symbols-outlined {
@@ -515,10 +425,6 @@ html, body, #root {
   padding: 8px 24px;
   opacity: 0;
   transition: opacity 0.15s;
-}
-
-@media (max-width: 767px) {
-  .mc-drag-handle-zone { display: none; }
 }
 
 .mc-stream-bar:hover .mc-drag-handle-zone { opacity: 1; }
@@ -619,39 +525,12 @@ html, body, #root {
   border-color: var(--color-green);
 }
 
-@media (max-width: 767px) {
-    .mc-stream-wrapper {
-    transition: aspect-ratio 0.3s ease;
-  }
-  .mc-stream-wrapper.is-featured {
-    aspect-ratio: 16 / 9;
-  }
-
-  .mc-stream-wrapper.is-collapsed {
-    aspect-ratio: 16 / 4;
-  }
-
-  .mc-stream-wrapper.is-collapsed .mc-stream-video {
-    opacity: 0.5;
-  }
-}
 /* ─── Countdown Timer ───────────────────────────────────────────────────── */
 .mc-countdown {
   display: flex;
   align-items: center;
   gap: 16px;
   position: relative;
-}
-
-@media (max-width: 767px) {
-  .mc-clock { display: none; }
-  .mc-countdown { gap: 30px; }
-  .mc-window-bar {
-    min-width: 100px;
-  }
-  .mc-window-bar .font-mono[style] {
-    font-size: 7px !important;
-  }
 }
 
 .mc-countdown-display {
@@ -668,10 +547,6 @@ html, body, #root {
 }
 
 .mc-countdown-display:hover { border-color: rgba(255,255,255,0.12); }
-
-@media (max-width: 767px) {
-  .mc-countdown-display { padding: 5px 10px; }
-}
 
 .mc-countdown-dot {
   width: 8px;
@@ -692,10 +567,6 @@ html, body, #root {
   letter-spacing: 2px;
   font-weight: 500;
   line-height: 1;
-}
-
-@media (max-width: 767px) {
-  .mc-countdown-time { font-size: 14px; letter-spacing: 1px; }
 }
 
 .mc-countdown-time.hold     { color: var(--color-red); }
@@ -748,15 +619,6 @@ html, body, #root {
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.65);
 }
 
-@media (max-width: 767px) {
-  .mc-t0-popover {
-    left: 50%;
-    transform: translateX(-50%);
-    width: calc(100vw - 32px);
-    max-width: 320px;
-  }
-}
-
 .mc-t0-popover input {
   width: 100%;
   padding: 8px 11px;
@@ -797,8 +659,8 @@ html, body, #root {
 
 /* ─── Desktop Sidebar ───────────────────────────────────────────────────── */
 .mc-sidebar {
-  max-width: 300px;
-  width: 300px;
+  max-width: 320px;
+  width: 320px;
   border-left: 1px solid var(--color-border);
   flex-shrink: 0;
   overflow: hidden;
@@ -825,8 +687,8 @@ html, body, #root {
 }
 
 .mc-sidebar-inner {
-  width: 300px;
-  min-width: 300px;
+  width: 320px;
+  min-width: 320px;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -1096,10 +958,6 @@ html, body, #root {
   -webkit-appearance: none;
 }
 
-@media (max-width: 767px) {
-  .mc-input { font-size: 16px; /* prevents iOS zoom */ }
-}
-
 .mc-input:focus { border-color: var(--color-border-hover); }
 .mc-input::placeholder { color: var(--color-text-ghost); }
 select.mc-input { cursor: pointer; }
@@ -1161,3 +1019,742 @@ select.mc-input { cursor: pointer; }
 .gap-20 { gap: 20px; }
 .flex-col { display: flex; flex-direction: column; align-items: flex-start; }
 .ml-auto  { margin-left: auto; }
+
+/* ─── Landscape info button: hidden by default, shown only in landscape query ── */
+.mc-landscape-info-btn {
+  display: none;
+}
+
+
+/* ─── Arc Timeline ──────────────────────────────────────────────────────── */
+.mc-timeline-section {
+  /* Zero horizontal padding so SVG runs edge-to-edge inside the card */
+  padding: 14px 0 10px 0;
+  /* Override the base section padding that would shrink our width */
+  box-sizing: border-box;
+}
+
+.mc-timeline-section .mc-section-header {
+  padding: 0 14px;
+  margin-bottom: 6px;
+}
+
+/* Fixed-viewport arc — fills the full card width */
+.mc-timeline-viewport {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  touch-action: pan-y;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  overflow: hidden;
+  /* CSS edge fade — no SVG IDs needed */
+  mask-image: linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%);
+}
+
+.mc-timeline-viewport svg {
+  display: block;
+}
+
+.mc-timeline-viewport:active { cursor: grabbing; }
+
+/* ─── Mobile clock center ───────────────────────────────────────────────── */
+.mc-mobile-clock-center {
+  display: none; /* hidden by default; shown on mobile via media query */
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE OVERHAUL — portrait phones (max-width: 767px)
+   Desktop and tablet styles above are untouched.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* iOS toolbar height constant — used in padding calculations */
+:root {
+  --mobile-nav-height: 49px; /* iOS standard tab bar content height */
+  --mobile-nav-total: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px));
+}
+
+@media (max-width: 767px) {
+
+  /* ── App shell ───────────────────────────────────────────────────────── */
+  .mc-app {
+    height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header: 3-zone layout — T-0 left | clock center | info right ──── */
+  .mc-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    min-height: 52px;
+    max-height: 52px;
+    height: 52px;
+    gap: 0;
+    border-bottom: 1px solid var(--color-border);
+    position: relative; /* needed for absolute clock centering */
+  }
+
+  .mc-header-left  { display: none !important; }
+
+  /* Left zone: countdown + milestone */
+  .mc-header-center {
+    flex: 1;
+    justify-content: flex-start;
+    gap: 8px;
+    min-width: 0;
+    align-items: center;
+  }
+
+  /* Clock center hidden in portrait */
+  .mc-mobile-clock-center { display: none !important; }
+
+  /* Right zone: info button */
+  .mc-header-right {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  /* ── Countdown: T-0 left, milestone right ───────────────────────────── */
+  .mc-countdown {
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .mc-countdown-display {
+    padding: 5px 10px;
+    gap: 7px;
+    border-radius: 7px;
+    flex-shrink: 0;
+  }
+
+  .mc-countdown-time {
+    font-size: 14px;
+    letter-spacing: 1.4px;
+  }
+
+  .mc-countdown-dot {
+    width: 7px;
+    height: 7px;
+  }
+
+  .mc-countdown-note {
+    font-size: 8px;
+    margin-top: 2px;
+  }
+
+  /* ── Milestone pill: right-aligned, no progress bar ────────────────── */
+  .mc-window-bar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 5px;
+    min-width: 0;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  /* Hide the progress bar track inside the header milestone widget */
+  .mc-window-bar .mc-window-track {
+    display: none;
+  }
+
+  /* The two text spans — right-aligned row */
+  .mc-window-bar > div:first-child {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 5px;
+    min-width: 0;
+    overflow: hidden;
+    flex: 0 0 auto;
+  }
+
+  /* "NEXT MILESTONE" label — hide it, save space */
+  .mc-window-bar > div:first-child > span:first-child {
+    display: none;
+  }
+
+  /* Inner row: name + countdown, right-aligned */
+  .mc-window-bar > div:first-child > div {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: baseline !important;
+    justify-content: flex-end !important;
+    gap: 5px !important;
+    min-width: 0;
+    overflow: hidden;
+    flex: 1;
+  }
+
+  /* Milestone name */
+  .mc-window-bar > div:first-child > div > span:first-child {
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    color: var(--color-text-secondary) !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.2px !important;
+    text-align: left;
+  }
+
+  /* Countdown to milestone e.g. "T-2h 14m" */
+  .mc-window-bar > div:first-child > div > span:last-child {
+    font-size: 10px !important;
+    color: var(--color-amber) !important;
+    white-space: nowrap;
+    flex-shrink: 0;
+    letter-spacing: 0.2px !important;
+    text-align: left;
+  }
+
+  /* Hide desktop clock entirely on mobile */
+  .mc-clock { display: none; }
+
+  /* ── T-0 popover: full-width centered ────────────────────────────────── */
+  .mc-t0-popover {
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100vw - 32px);
+    max-width: 320px;
+    top: calc(100% + 8px);
+  }
+
+  /* ── Main layout ─────────────────────────────────────────────────────── */
+  .mc-main {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Streams area ────────────────────────────────────────────────────── */
+  .mc-streams-area {
+    flex: 1;
+    padding: 6px 6px 0 6px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    gap: 0;
+  }
+
+  /* ── Controls bar: hidden in portrait mobile ────────────────────────── */
+  .mc-controls-bar { display: none !important; }
+
+  /* ── Grid container: scrollable column of streams ─────────────────────── */
+  .mc-grid-container {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: var(--mobile-nav-total);
+  }
+
+  /* Vertically stacked streams */
+  .mc-grid-container > div {
+    display: flex !important;
+    flex-direction: column !important;
+    height: auto !important;
+    gap: 6px !important;
+    padding-bottom: 4px;
+  }
+
+  /* Each stream wrapper: 16:9 */
+  .mc-stream-wrapper {
+    width: 100% !important;
+    height: auto !important;
+    aspect-ratio: 16 / 9;
+    order: unset !important;
+    grid-column: unset !important;
+    grid-row: unset !important;
+    flex-shrink: 0;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+
+  .mc-stream-wrapper.is-featured { aspect-ratio: 16 / 9; }
+
+  .mc-stream-wrapper.is-collapsed {
+    aspect-ratio: 16 / 4;
+  }
+  .mc-stream-wrapper.is-collapsed .mc-stream-video { opacity: 0.4; }
+
+  .mc-stream-card { height: 100%; border-radius: 9px; }
+
+  .mc-stream-bar { height: 36px; padding: 5px 10px; }
+  .mc-stream-label { font-size: 11px; }
+  .mc-drag-handle-zone { display: none !important; }
+
+  .mc-btn-icon { padding: 7px 8px; }
+  .mc-btn-icon .material-symbols-outlined { font-size: 18px !important; }
+
+  /* ── Empty state: truly centered in remaining space ──────────────────── */
+  .mc-grid-container {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* When the inner div is the flex child and empty-state is inside it,
+     we need the container to stretch. The empty-state div itself is already
+     height:100% with flex centering. */
+  .mc-empty-state {
+    flex: 1;
+    height: 100%;
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    gap: 14px;
+  }
+
+  /* ── iOS-style bottom tab bar ────────────────────────────────────────── */
+  /* Content height: 49px (iOS HIG standard) + safe area inset */
+  .mc-mobile-nav-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 90;
+    /* 49px is the exact iOS tab bar content height per Apple HIG */
+    height: calc(49px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: rgba(10, 10, 13, 0.92);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-top: 0.5px solid rgba(255,255,255,0.1);
+    display: flex;
+    align-items: flex-start; /* align to top of content zone, not including safe area */
+    justify-content: space-around;
+  }
+
+  /* ── Bottom sheet ────────────────────────────────────────────────────── */
+  .mc-mobile-sheet {
+    max-height: 88dvh;
+    border-radius: 20px 20px 0 0;
+    border-top: 0.5px solid rgba(255,255,255,0.12);
+  }
+
+  .mc-mobile-sheet-handle { padding: 10px 0 6px; }
+
+  .mc-mobile-sheet-pill {
+    width: 36px;
+    height: 5px;
+    background: rgba(255,255,255,0.18);
+    border-radius: 3px;
+  }
+
+  .mc-mobile-sheet-content {
+    padding-bottom: max(env(safe-area-inset-bottom, 16px), 16px);
+  }
+
+  /* ── Sidebar sections inside sheet ───────────────────────────────────── */
+  .mc-sidebar-section {
+    margin: 8px 10px 0 10px;
+    width: calc(100% - 20px);
+    padding: 12px;
+  }
+  .mc-timeline-section {
+    padding: 12px 0 8px 0;
+  }
+  .mc-timeline-section .mc-section-header {
+    padding: 0 12px;
+  }
+  .mc-sidebar-section:last-of-type { margin-bottom: 8px; }
+
+  /* Timeline section: keep zero horizontal padding on mobile too */
+  .mc-timeline-section {
+    padding: 12px 0 8px 0;
+  }
+  .mc-timeline-section .mc-section-header {
+    padding: 0 12px;
+  }
+
+  /* ── Modal ───────────────────────────────────────────────────────────── */
+  .mc-modal {
+    width: calc(100vw - 24px);
+    max-width: 100%;
+    border-radius: 14px;
+  }
+  .mc-modal-body { padding: 16px; }
+  .mc-modal-header { padding: 14px 16px 12px; }
+  .mc-input { font-size: 16px; padding: 10px 12px; }
+  .mc-btn-submit { padding: 12px; font-size: 13px; border-radius: 8px; }
+
+  /* ── Status / crew ───────────────────────────────────────────────────── */
+  .mc-status-row { grid-template-columns: 76px 1fr; }
+  .mc-crew-list { gap: 10px; }
+  .mc-section-title { font-size: 9px; letter-spacing: 1.2px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LANDSCAPE PHONES
+   iPhones in landscape have width > 767px so the portrait query above
+   doesn't fire. We target them with max-height instead.
+   Also catches any phone ≤767px wide in landscape.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-height: 500px) and (orientation: landscape),
+       (max-width: 767px) and (orientation: landscape) {
+
+  /* ── App shell ───────────────────────────────────────────────────────── */
+  .mc-app {
+    height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Compact header ──────────────────────────────────────────────────── */
+  .mc-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    /* Match padding to streams-area (5px) + controls-bar (4px) = 9px
+       so T-0 left and info btn right align with the channel buttons below */
+    padding: 0 9px;
+    min-height: 44px;
+    max-height: 44px;
+    height: 44px;
+    gap: 10px;
+    border-bottom: 1px solid var(--color-border);
+    grid-template-columns: unset;
+    position: relative;
+  }
+
+  /* Hide desktop elements first, then selectively restore clock inside center */
+  .mc-header-left  { display: none !important; }
+  .mc-clock        { display: none !important; }
+  .mc-divider-v    { display: none !important; }
+
+  /* Clock centered in landscape — must come AFTER the none rule to override */
+  .mc-mobile-clock-center {
+    display: flex !important;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .mc-mobile-clock-center .mc-clock {
+    display: flex !important;
+    flex-direction: row;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .mc-mobile-clock-center .mc-clock-unit {
+    display: flex !important;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 4px;
+  }
+
+  .mc-mobile-clock-center .mc-clock-unit span:last-child {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    letter-spacing: 0.5px;
+  }
+
+  .mc-mobile-clock-center .mc-clock-label {
+    font-size: 8px;
+    color: var(--color-text-faint);
+    letter-spacing: 0.8px;
+    font-family: var(--font-mono);
+  }
+
+  .mc-header-center {
+    flex: 1;
+    justify-content: flex-start;
+    gap: 10px;
+    min-width: 0;
+    align-items: center;
+  }
+
+  .mc-header-right {
+    flex-shrink: 0;
+    display: flex !important;
+    align-items: center;
+    gap: 0;
+  }
+
+  /* Explicitly hide the desktop Hide Panel button in landscape */
+  .mc-header-right .mc-btn.mc-btn-ghost.mc-btn-sm {
+    display: none !important;
+  }
+
+  /* Show the info icon button in landscape */
+  .mc-landscape-info-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    flex-shrink: 0;
+  }
+
+  .mc-landscape-info-btn .material-symbols-outlined {
+    font-size: 18px !important;
+  }
+
+  /* ── Countdown in landscape: T-0 left, milestone right ──────────────── */
+  .mc-countdown {
+    gap: 10px;
+    align-items: center;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .mc-countdown-display {
+    padding: 4px 9px;
+    gap: 6px;
+    border-radius: 7px;
+    flex-shrink: 0;
+  }
+
+  .mc-countdown-time {
+    font-size: 13px;
+    letter-spacing: 1.2px;
+  }
+
+  .mc-countdown-dot { width: 6px; height: 6px; }
+
+  /* ── Milestone pill in landscape: right-aligned ─────────────────────── */
+  .mc-window-bar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 5px;
+    min-width: 0;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .mc-window-bar .mc-window-track { display: none; }
+  .mc-window-bar > div:first-child {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 5px;
+    min-width: 0;
+    overflow: hidden;
+    flex: 0 0 auto;
+  }
+  .mc-window-bar > div:first-child > span:first-child { display: none; }
+  .mc-window-bar > div:first-child > div {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: baseline !important;
+    justify-content: flex-end !important;
+    gap: 5px !important;
+    min-width: 0;
+    overflow: hidden;
+    flex: 1;
+  }
+  .mc-window-bar > div:first-child > div > span:first-child {
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    color: var(--color-text-secondary) !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.2px !important;
+    text-align: left;
+  }
+  .mc-window-bar > div:first-child > div > span:last-child {
+    font-size: 10px !important;
+    color: var(--color-amber) !important;
+    white-space: nowrap;
+    flex-shrink: 0;
+    letter-spacing: 0.2px !important;
+    text-align: left;
+  }
+
+  /* ── Main content area ───────────────────────────────────────────────── */
+  .mc-main {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: row; /* sidebar would go on side but it's hidden on mobile */
+  }
+
+  .mc-streams-area {
+    flex: 1;
+    padding: 5px 5px 0 5px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    gap: 0;
+  }
+
+  /* Hide desktop sidebar in landscape mobile */
+  .mc-sidebar { display: none !important; }
+
+  /* ── Stream grid for landscape ──────────────────────────────────────── */
+  .mc-grid-container {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: calc(49px + env(safe-area-inset-bottom, 0px));
+    /* JS sets display:grid inline; container must be a flex item with defined height */
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Inner grid: fill container for speaker/cinema, auto height for gallery/triple */
+  .mc-grid-container > div {
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* Stream wrappers in landscape — JS inline styles override aspect-ratio per layout */
+  .mc-grid-container > div {
+    align-items: stretch;
+    padding-bottom: 4px;
+  }
+
+  .mc-stream-wrapper {
+    width: 100%;
+    /* default 16:9; overridden inline by getItemStyle for speaker/cinema main */
+    aspect-ratio: 16 / 9;
+    min-height: 0;
+    min-width: 0;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+
+  /* speaker/cinema main item spans rows — fills grid area height */
+  .mc-stream-wrapper[data-main="true"] {
+    aspect-ratio: unset;
+    height: 100%;
+    min-height: 80px;
+  }
+
+  .mc-stream-wrapper.is-collapsed { aspect-ratio: 16 / 5; }
+  .mc-stream-wrapper.is-collapsed .mc-stream-video { opacity: 0.4; }
+
+  .mc-stream-card { height: 100%; border-radius: 8px; }
+  .mc-stream-bar { height: 32px; padding: 4px 8px; }
+  .mc-stream-label { font-size: 10px; }
+  .mc-drag-handle-zone { display: none !important; }
+
+  .mc-btn-icon { padding: 5px 6px; }
+  .mc-btn-icon .material-symbols-outlined { font-size: 16px !important; }
+
+  /* ── Empty state: centered ───────────────────────────────────────────── */
+  .mc-empty-state {
+    flex: 1;
+    height: 100%;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    gap: 12px;
+  }
+
+  /* ── iOS tab bar in landscape ────────────────────────────────────────── */
+  .mc-mobile-nav-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 90;
+    height: calc(49px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: rgba(10, 10, 13, 0.92);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-top: 0.5px solid rgba(255,255,255,0.1);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-around;
+  }
+
+  /* ── Bottom sheet in landscape ───────────────────────────────────────── */
+  .mc-mobile-backdrop { display: block; }
+  .mc-mobile-sheet {
+    display: flex;
+    max-height: 80dvh;
+    border-radius: 16px 16px 0 0;
+    border-top: 0.5px solid rgba(255,255,255,0.12);
+  }
+
+  .mc-mobile-sheet-content {
+    padding-bottom: max(env(safe-area-inset-bottom, 12px), 12px);
+  }
+
+  /* ── Sidebar sections inside sheet ───────────────────────────────────── */
+  .mc-sidebar-section {
+    margin: 8px 10px 0 10px;
+    width: calc(100% - 20px);
+    padding: 12px;
+  }
+
+  /* ── Controls bar: visible in landscape with icon-only layout buttons ── */
+  .mc-controls-bar {
+    display: flex !important;
+    padding: 3px 4px;
+    min-height: 34px;
+    flex-shrink: 0;
+    gap: 6px;
+  }
+
+  /* Show layout group in landscape */
+  .mc-layout-group {
+    display: flex !important;
+    gap: 3px;
+  }
+
+  /* Icon-only: hide text labels */
+  .mc-layout-group .mc-btn-label { display: none !important; }
+  .mc-layout-group .mc-btn-sm { padding: 5px 8px; min-height: 28px; }
+
+  .mc-action-group {
+    gap: 4px;
+    margin-left: auto;
+  }
+
+  /* Compact action buttons: icon only */
+  .mc-action-group .mc-btn-label { display: none !important; }
+  .mc-action-group .mc-btn-sm { padding: 5px 8px; min-height: 28px; font-size: 10px; }
+
+  /* ── Modal in landscape ──────────────────────────────────────────────── */
+  .mc-modal {
+    width: calc(100vw - 24px);
+    max-width: 480px;
+    border-radius: 14px;
+  }
+  .mc-input { font-size: 16px; }
+}

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import "./App.css";
 
 const CREW = [
@@ -38,7 +38,35 @@ function getEmbedUrl(stream) {
 }
 
 const WINDOW_OPEN  = "2026-04-01T22:35:00Z";
-const WINDOW_CLOSE = "2026-04-02T00:24:00Z";
+
+// ─── Hook: detect mobile ──────────────────────────────────────────────────
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 767);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const handler = (e) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return isMobile;
+}
+
+// ─── Hook: detect landscape phone ────────────────────────────────────────
+function useIsLandscape() {
+  const check = () =>
+    window.innerWidth > window.innerHeight && window.innerHeight <= 500;
+  const [isLandscape, setIsLandscape] = useState(check);
+  useEffect(() => {
+    const handler = () => setIsLandscape(check());
+    window.addEventListener("resize", handler);
+    window.addEventListener("orientationchange", handler);
+    return () => {
+      window.removeEventListener("resize", handler);
+      window.removeEventListener("orientationchange", handler);
+    };
+  }, []);
+  return isLandscape;
+}
 
 // ─── Countdown Timer ──────────────────────────────────────────────────────
 function CountdownTimer({ targetOverride, onOverride }) {
@@ -49,12 +77,24 @@ function CountdownTimer({ targetOverride, onOverride }) {
   const [holdFrozen, setHoldFrozen] = useState(null);
 
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
+    // Stop ticking once mission is complete — no need to keep updating
+    const splashMs = new Date(MILESTONES.find(m => m.id === "splashdown").t).getTime();
+    if (Date.now() >= splashMs) return;
+    const t = setInterval(() => {
+      const n = Date.now();
+      setNow(n);
+      if (n >= splashMs) clearInterval(t);
+    }, 1000);
     return () => clearInterval(t);
   }, []);
 
-  const target   = targetOverride ? new Date(targetOverride).getTime() : new Date(WINDOW_OPEN).getTime();
-  const diff     = holdActive && holdFrozen !== null ? holdFrozen : target - now;
+  const target      = targetOverride ? new Date(targetOverride).getTime() : new Date(WINDOW_OPEN).getTime();
+  const splashdownMs = new Date(MILESTONES.find(m => m.id === "splashdown").t).getTime();
+  const missionOver  = now >= splashdownMs && !holdActive;
+
+  const diff     = holdActive && holdFrozen !== null ? holdFrozen
+    : missionOver ? splashdownMs - target   // freeze at splashdown elapsed
+    : target - now;
   const launched = diff <= 0 && !holdActive;
 
   const fmt = (ms) => {
@@ -97,8 +137,8 @@ function CountdownTimer({ targetOverride, onOverride }) {
         <span className={`mc-countdown-dot ${mode}`} />
         <div className="flex-col" style={{ alignItems: "flex-start" }}>
           <span className={`mc-countdown-time ${mode}`}>
-            {holdActive ? "HOLD " : launched ? "T+ " : "T- "}
-            {fmt(launched && !holdActive ? now - target : diff)}
+            {holdActive ? "HOLD " : missionOver ? "SPLASHDOWN T+ " : launched ? "T+ " : "T- "}
+            {fmt(missionOver ? splashdownMs - target : launched && !holdActive ? now - target : diff)}
           </span>
           {(targetOverride || holdActive) && (
             <span className="mc-countdown-note" style={{ color: holdActive ? "var(--color-red)" : "var(--color-text-muted)" }}>
@@ -114,22 +154,18 @@ function CountdownTimer({ targetOverride, onOverride }) {
         const offset = adjustedLiftoffMs - originalLiftoffMs;
         const nextMilestone = MILESTONES.find(m => now < new Date(m.t).getTime() + offset);
         const prevMilestone = [...MILESTONES].reverse().find(m => now >= new Date(m.t).getTime() + offset);
-
         if (!nextMilestone) return null;
-
         const nextMs   = new Date(nextMilestone.t).getTime() + offset;
         const prevMs   = prevMilestone ? new Date(prevMilestone.t).getTime() + offset : nextMs - 3600000;
         const spanMs   = nextMs - prevMs;
         const elapsed  = now - prevMs;
         const pct      = Math.max(0, Math.min(100, (elapsed / spanMs) * 100));
-
         const timeToNext = nextMs - now;
         const absS  = Math.floor(Math.abs(timeToNext) / 1000);
         const absM  = Math.floor(absS / 60) % 60;
         const absH  = Math.floor(absS / 3600) % 24;
         const absD  = Math.floor(absS / 86400);
         const fmtCountdown = absD > 0 ? `${absD}d ${absH}h` : absH > 0 ? `${absH}h ${absM}m` : absM > 0 ? `${absM}m ${absS % 60}s` : `${absS}s`;
-
         return (
           <div className="mc-window-bar">
             <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -307,13 +343,10 @@ function AddStreamModal({ onClose, onAdd }) {
 }
 
 // ─── NASA RSS Feed ────────────────────────────────────────────────────────
-const NASA_RSS_URL = "https://blogs.nasa.gov/artemis/feed/";
 const REFRESH_MS = 5 * 60 * 1000;
 
 async function fetchNASARSS() {
-  // rss2json is a dedicated RSS proxy service — much more reliable than generic CORS proxies
   const rss2jsonUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent("https://www.nasa.gov/blogs/artemis/feed/")}&api_key=&count=10`;
-
   try {
     const res  = await fetch(rss2jsonUrl, { signal: AbortSignal.timeout(14000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -323,8 +356,6 @@ async function fetchNASARSS() {
   } catch (err) {
     console.warn("[RSS] rss2json failed:", err.message);
   }
-
-  // Fallback: generic CORS proxies
   const proxies = [
     `https://corsproxy.io/?${encodeURIComponent("https://www.nasa.gov/blogs/artemis/feed/")}`,
     `https://api.allorigins.win/raw?url=${encodeURIComponent("https://www.nasa.gov/blogs/artemis/feed/")}`,
@@ -335,7 +366,7 @@ async function fetchNASARSS() {
       if (!res.ok) continue;
       const text = await res.text();
       if (!text.includes("<item>")) continue;
-      return text; // raw XML — handled below
+      return text;
     } catch (err) {
       console.warn("[RSS] proxy failed:", err?.message);
     }
@@ -345,23 +376,19 @@ async function fetchNASARSS() {
 
 function parseNASARSS(data) {
   try {
-    // rss2json returns an array of item objects directly
     if (Array.isArray(data)) {
       return data.map((item) => ({
-      time: item.pubDate
-        ? (() => {
-            // rss2json returns "YYYY-MM-DD HH:MM:SS" — convert to ISO format for cross-browser compat
-            const iso = item.pubDate.replace(" ", "T") + "Z";
-            const d = new Date(iso);
-            return isNaN(d.getTime()) ? "" : d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" }) + " ET";
-          })()
-        : "",
+        time: item.pubDate
+          ? (() => {
+              const iso = item.pubDate.replace(" ", "T") + "Z";
+              const d = new Date(iso);
+              return isNaN(d.getTime()) ? "" : d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" }) + " ET";
+            })()
+          : "",
         headline: (item.title || "").substring(0, 100),
         detail:   (item.description || "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().substring(0, 220),
       })).filter(u => u.headline);
     }
-
-    // Fallback: raw XML string
     const doc   = new DOMParser().parseFromString(data, "text/xml");
     const items = Array.from(doc.querySelectorAll("item")).slice(0, 10);
     return items.map((item) => {
@@ -428,8 +455,6 @@ function useNASALiveData() {
 
 // ─── LL2 Launch Data Hook ─────────────────────────────────────────────────
 function useLL2LaunchData() {
-  // Artemis II launched April 1, 2026 at 6:35 PM ET
-  // LL2 upcoming endpoint no longer returns it post-launch
   const staticStatus = {
     launchStatus: { value: "Success",       state: "nominal" },
     vehicle:      { value: "SLS Block 1",   state: "nominal" },
@@ -443,7 +468,6 @@ function useLL2LaunchData() {
     weatherConcerns: null,
     lastUpdated:  new Date("2026-04-01T22:35:00Z"),
   };
-
   return {
     ll2Status:    staticStatus,
     ll2Loading:   false,
@@ -644,31 +668,100 @@ function MissionStatusPanel({ ll2 }) {
 }
 
 // ─── Mission Milestones ───────────────────────────────────────────────────
+// Milestones sourced from NASA official publications and confirmed live coverage.
+// Ascent MET times from NASA Artemis II launch day blog (newspaceeconomy.ca summary).
+// Post-ascent times from NASA coverage schedule and live updates as of April 2, 2026.
+// Times marked with ~ are planned/scheduled and subject to change.
+const LIFTOFF_T = WINDOW_OPEN; // April 1, 2026 6:35 PM EDT — confirmed by NASA
+const met = (h, m, s) => {
+  const base = new Date(LIFTOFF_T).getTime();
+  return new Date(base + ((h * 3600) + (m * 60) + s) * 1000).toISOString();
+};
+
 const MILESTONES = [
-  { id: "tanking",    label: "Propellant Loading",      t: "2026-04-01T16:30:00-04:00" },
-  { id: "t-4hold",    label: "T-4 Min Hold",            t: "2026-04-01T18:20:00-04:00" },
-  { id: "terminal",   label: "Terminal Count",          t: "2026-04-01T18:23:00-04:00" },
-  { id: "liftoff",    label: "Liftoff",                 t: "2026-04-01T18:35:00-04:00" },
-  { id: "maxq",       label: "Max-Q",                   t: "2026-04-01T18:37:00-04:00" },
-  { id: "beco",       label: "Booster Cut-Off",         t: "2026-04-01T18:39:00-04:00" },
-  { id: "seco1",      label: "Core SECO",               t: "2026-04-01T18:47:00-04:00" },
-  { id: "icps",       label: "ICPS Ignition",           t: "2026-04-01T18:48:00-04:00" },
-  { id: "prm",        label: "Perigee Raise Burn",      t: "2026-04-01T20:00:00-04:00" },
-  { id: "arb",        label: "Apogee Raise Burn",       t: "2026-04-01T21:30:00-04:00" },
-  { id: "prox",       label: "Proximity Operations",    t: "2026-04-02T01:00:00-04:00" },
-  { id: "prm2",       label: "Perigee Raise Burn 2",    t: "2026-04-02T08:19:00-04:00" },
-  { id: "tli",        label: "Trans-Lunar Injection",   t: "2026-04-02T21:00:00-04:00" },
-  { id: "lunar",      label: "Lunar Flyby",             t: "2026-04-07T00:00:00-04:00" },
-  { id: "return",     label: "Return Burn",             t: "2026-04-09T00:00:00-04:00" },
-  { id: "splashdown", label: "Splashdown",              t: "2026-04-11T12:00:00-04:00" },
+  // ── Ascent (MET times from NASA launch blog) ──────────────────────────
+  { id: "liftoff",   label: "Liftoff",          t: LIFTOFF_T,       confirmed: true  },
+  { id: "maxq",      label: "Max-Q",            t: met(0, 1, 12),   confirmed: true  },
+  { id: "srbsep",    label: "Booster Sep",      t: met(0, 2, 9),    confirmed: true  },
+  { id: "meco",      label: "Main Engine Cutoff",t: met(0, 8, 2),   confirmed: true  },
+  { id: "cssep",     label: "Core Stage Sep",   t: met(0, 8, 14),   confirmed: true  },
+  { id: "sawdeploy", label: "Solar Arrays",     t: met(0, 18, 0),   confirmed: true  },
+  // ── Early orbit ───────────────────────────────────────────────────────
+  { id: "prm",       label: "Perigee Raise Burn",t: "2026-04-02T11:00:00Z", confirmed: true  },
+  // ── Departure ─────────────────────────────────────────────────────────
+  { id: "tli",       label: "Trans-Lunar Injection", t: "2026-04-02T23:49:00Z", confirmed: false },
+  // ── Outbound ──────────────────────────────────────────────────────────
+  { id: "rec1",      label: "Outbound Correction", t: "2026-04-03T20:00:00Z", confirmed: false },
+  // ── Lunar encounter ───────────────────────────────────────────────────
+  { id: "distrecord",label: "Distance Record",  t: "2026-04-06T17:45:00Z", confirmed: false },
+  { id: "lunar",     label: "Lunar Flyby",      t: "2026-04-06T20:00:00Z", confirmed: false },
+  // ── Return ────────────────────────────────────────────────────────────
+  { id: "ret1",      label: "Return Burn 1",    t: "2026-04-07T18:00:00Z", confirmed: false },
+  { id: "ret2",      label: "Return Burn 2",    t: "2026-04-08T18:00:00Z", confirmed: false },
+  { id: "ret3",      label: "Return Burn 3",    t: "2026-04-09T18:00:00Z", confirmed: false },
+  // ── Entry & recovery ──────────────────────────────────────────────────
+  { id: "sep",       label: "CM Separation",    t: "2026-04-11T00:00:00Z", confirmed: false },
+  { id: "splashdown",label: "Splashdown",       t: "2026-04-11T00:06:00Z", confirmed: false },
 ];
 
 function MilestonesTimeline({ targetOverride }) {
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow]                   = useState(Date.now());
+  const [scrollOffset, setScrollOffset] = useState(0);
+  const [animOffset, setAnimOffset]     = useState(0);   // smoothly-animated display offset
+  const [svgWidth, setSvgWidth]         = useState(260);
+  const containerRef = useRef(null);
+  const drag         = useRef({ active: false, startX: 0, startOffset: 0, velX: 0, lastX: 0, lastT: 0 });
+  const rafRef       = useRef(null);
+  const animRaf      = useRef(null);   // separate rAF loop for display animation
+
+
+  // Measure container width synchronously before paint, then keep watching
+  const measureWidth = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    // Walk up to the nearest element with a stable width (the section card)
+    const section = el.closest('.mc-timeline-section') || el.parentElement || el;
+    const rect = section.getBoundingClientRect();
+    if (rect.width > 10) setSvgWidth(rect.width);
+  }, []);
+
+  // useLayoutEffect runs synchronously after DOM mutations — catches correct width
+  useLayoutEffect(() => {
+    measureWidth();
+  });
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const section = el.closest('.mc-timeline-section') || el.parentElement || el;
+    const ro = new ResizeObserver(measureWidth);
+    ro.observe(section);
+    return () => ro.disconnect();
+  }, [measureWidth]);
+
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
+
+  // Animate display offset — lerps toward scrollOffset every frame for smooth motion
+  useEffect(() => {
+    let animVal = scrollOffset;
+    const loop = () => {
+      setAnimOffset(prev => {
+        const diff = scrollOffset - prev;
+        if (Math.abs(diff) < 0.0008) {
+          animVal = scrollOffset;
+          return scrollOffset; // settled
+        }
+        animVal = prev + diff * 0.12; // ease factor: lower = smoother/slower
+        return animVal;
+      });
+      animRaf.current = requestAnimationFrame(loop);
+    };
+    animRaf.current = requestAnimationFrame(loop);
+    return () => { if (animRaf.current) cancelAnimationFrame(animRaf.current); };
+  }, [scrollOffset]);
 
   const originalLiftoffMs = new Date(MILESTONES.find(m => m.id === "liftoff").t).getTime();
   const adjustedLiftoffMs = targetOverride ? new Date(targetOverride).getTime() : originalLiftoffMs;
@@ -678,77 +771,334 @@ function MilestonesTimeline({ targetOverride }) {
   const activeIdx = MILESTONES.reduce((acc, m, i) =>
     now >= new Date(m.t).getTime() + offset ? i : acc, -1);
 
+  // Focus: next incomplete milestone, or last milestone if all done
+  const focusIdx = activeIdx < MILESTONES.length - 1
+    ? activeIdx + 1
+    : activeIdx >= 0 ? activeIdx : 0;
+
+
+
   const fmtRel = (ms) => {
     const abs = Math.abs(ms);
     const s   = Math.floor(abs / 1000) % 60;
-    const m   = Math.floor(abs / 60000) % 60;
-    const h   = Math.floor(abs / 3600000);
-    if (h > 48) return `${Math.floor(h / 24)}d ${h % 24}h`;
-    if (h > 0)  return `${h}h ${m}m`;
-    if (m > 0)  return `${m}m ${s}s`;
+    const m_  = Math.floor(abs / 60000) % 60;
+    const h   = Math.floor(abs / 3600000) % 24;
+    const d   = Math.floor(abs / 86400000);
+    if (d > 0)  return m_ > 0 ? `${d}d ${h}h ${m_}m` : `${d}d ${h}h`;
+    if (h > 0)  return `${h}h ${m_}m`;
+    if (m_ > 0) return `${m_}m ${s}s`;
     return `${s}s`;
   };
 
+  // ── Arc geometry (recomputed when svgWidth changes) ────────────────────
+  const W          = svgWidth;
+  const H          = 163;
+  const CX         = W / 2;
+  const ARC_PEAK_Y = 72;    // y at arc peak (centre node)
+  const ARC_BASE_Y = 110;   // y at arc base (far edges)
+  const NODE_STEP  = 62;    // px per milestone in view-space
+  const HALF_SPAN  = W / 2;
+
+  const nodePos = (i) => {
+    const vx   = (i - animOffset) * NODE_STEP;
+    const svgX = CX + vx;
+    const norm = Math.min(1, Math.abs(vx) / HALF_SPAN);
+    const svgY = ARC_PEAK_Y + (ARC_BASE_Y - ARC_PEAK_Y) * norm * norm;
+    return { svgX, svgY };
+  };
+
+  const buildArcPath = () => {
+    const steps = 120;
+    let d = "";
+    for (let s = 0; s <= steps; s++) {
+      const svgX = (s / steps) * W;
+      const vx   = svgX - CX;
+      const norm = Math.min(1, Math.abs(vx) / HALF_SPAN);
+      const svgY = ARC_PEAK_Y + (ARC_BASE_Y - ARC_PEAK_Y) * norm * norm;
+      d += s === 0 ? `M ${svgX.toFixed(1)} ${svgY.toFixed(1)}` : ` L ${svgX.toFixed(1)} ${svgY.toFixed(1)}`;
+    }
+    return d;
+  };
+
+  // ── Drag + inertia + snap ──────────────────────────────────────────────
+  // Single unified physics ref: offset, velocity, snap target, phase
+  const physics = useRef({ offset: 0, vel: 0, snapTarget: null, phase: 'idle' });
+
+  const clamp = (v) => Math.max(0, Math.min(MILESTONES.length - 1, v));
+
+  // Commit physics offset to React state (called every rAF tick)
+  const commitOffset = useCallback((val) => {
+    setScrollOffset(clamp(val));
+  }, []);
+
+  const stopLoop = useCallback(() => {
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+    physics.current.phase = 'idle';
+  }, []);
+
+  const runLoop = useCallback(() => {
+    const p = physics.current;
+
+    if (p.phase === 'inertia') {
+      // Gradually decelerate — friction coefficient gives ~600ms half-life at 60fps
+      p.vel *= 0.96;
+      p.offset += p.vel;
+      p.offset = clamp(p.offset);
+      commitOffset(p.offset);
+
+      // Switch to snap once velocity is low enough
+      if (Math.abs(p.vel) < 0.012) {
+        p.snapTarget = clamp(Math.round(p.offset));
+        p.vel = 0;
+        p.phase = 'snap';
+      }
+      rafRef.current = requestAnimationFrame(runLoop);
+
+    } else if (p.phase === 'snap') {
+      const diff = p.snapTarget - p.offset;
+      if (Math.abs(diff) < 0.0015) {
+        // Settled — lock exactly on target
+        p.offset = p.snapTarget;
+        commitOffset(p.offset);
+        stopLoop();
+        return;
+      }
+      // Exponential ease-out: approaches target asymptotically, feels natural
+      p.offset += diff * 0.09;
+      commitOffset(p.offset);
+      rafRef.current = requestAnimationFrame(runLoop);
+    }
+  }, [commitOffset, stopLoop]);
+
+  const launchInertia = useCallback((vel) => {
+    const p = physics.current;
+    stopLoop();
+    p.vel    = vel;
+    p.phase  = 'inertia';
+    rafRef.current = requestAnimationFrame(runLoop);
+  }, [runLoop, stopLoop]);
+
+  const launchSnap = useCallback((target) => {
+    const p = physics.current;
+    stopLoop();
+    p.snapTarget = clamp(Math.round(target));
+    p.phase      = 'snap';
+    rafRef.current = requestAnimationFrame(runLoop);
+  }, [runLoop, stopLoop]);
+
+  // Snap to focus milestone on mount and when active milestone changes
+  useEffect(() => {
+    physics.current.offset = focusIdx;
+    launchSnap(focusIdx);
+  }, [focusIdx]); // eslint-disable-line
+
+  const onPointerDown = useCallback((e) => {
+    stopLoop();
+    // Sample offset from physics ref so it's current even mid-animation
+    drag.current = {
+      active:      true,
+      startX:      e.clientX,
+      startOffset: physics.current.offset,
+      // Rolling velocity samples (last 3 frames)
+      samples:     [],
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }, [stopLoop]);
+
+  const onPointerMove = useCallback((e) => {
+    if (!drag.current.active) return;
+    const d       = drag.current;
+    const now_    = performance.now();
+    const newOff  = clamp(d.startOffset - (e.clientX - d.startX) / NODE_STEP);
+
+    // Rolling velocity: px/ms → offset/frame (at 60fps = 16.7ms)
+    d.samples.push({ x: e.clientX, t: now_ });
+    if (d.samples.length > 4) d.samples.shift();
+
+    physics.current.offset = newOff;
+    commitOffset(newOff);
+  }, [commitOffset]);
+
+  const onPointerUp = useCallback((e) => {
+    if (!drag.current.active) return;
+    drag.current.active = false;
+
+    const d       = drag.current;
+    const samples = d.samples;
+    let vel       = 0;
+
+    // Compute velocity from last two samples, scaled to offset units per frame
+    if (samples.length >= 2) {
+      const s1 = samples[samples.length - 2];
+      const s2 = samples[samples.length - 1];
+      const dt = Math.max(1, s2.t - s1.t);
+      const dx = s2.x - s1.x;
+      // px/ms → offset/frame: divide by NODE_STEP, multiply by 16.7ms/frame
+      vel = -(dx / dt) * (16.7 / NODE_STEP);
+    }
+
+    if (Math.abs(vel) < 0.04) {
+      // Barely moved — snap directly to nearest
+      launchSnap(physics.current.offset);
+    } else {
+      launchInertia(vel);
+    }
+  }, [launchInertia, launchSnap]);
+
+
+  useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); }, []);
+
+  // Non-passive native wheel listener so we can preventDefault and stop sidebar scroll
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = (e) => {
+      const dx = Math.abs(e.deltaX) >= Math.abs(e.deltaY) ? e.deltaX : e.shiftKey ? e.deltaY : 0;
+      if (!dx) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      stopLoop();
+      const newOffset = clamp(physics.current.offset + dx / NODE_STEP);
+      physics.current.offset = newOffset;
+      setScrollOffset(newOffset);
+
+      clearTimeout(handler._t);
+      handler._t = setTimeout(() => launchSnap(physics.current.offset), 180);
+    };
+    el.addEventListener("wheel", handler, { passive: false });
+    return () => el.removeEventListener("wheel", handler);
+  }, [clamp, stopLoop, launchSnap]);
+
+  // Label zones — fixed y positions in SVG space
+  const ABOVE_NAME_Y = 22;
+  const ABOVE_TIME_Y = 35;
+  const BELOW_NAME_Y = 140;
+  const BELOW_TIME_Y = 153;
+  const TICK_GAP     = 5;
+
+  const arcPath = buildArcPath();
+
   return (
-    <div className="mc-sidebar-section" style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-      <div className="mc-section-header" style={{ width: "100%" }}>
+    <div className="mc-sidebar-section mc-timeline-section">
+      <div className="mc-section-header">
         <div className="mc-section-title">Mission Timeline</div>
         {launched && <span className="mc-section-badge live" style={{ animation: "pulse 1.2s infinite" }}>LIVE</span>}
       </div>
-      <div style={{ position: "relative", marginBottom: 16, width: "100%" }}>
-        <div style={{ height: 3, background: "var(--color-border)", borderRadius: 2, overflow: "hidden" }}>
-          <div style={{
-            height: "100%", borderRadius: 2,
-            background: "linear-gradient(90deg, var(--color-amber), var(--color-green))",
-            width: activeIdx < 0 ? "0%" : `${Math.min(100, ((activeIdx + 1) / MILESTONES.length) * 100)}%`,
-            transition: "width 1s linear",
-          }} />
-        </div>
-      </div>
-      <div className="flex-col" style={{ gap: 0, width: "100%", alignSelf: "stretch" }}>
-        {MILESTONES.map((m, i) => {
-          const ms       = new Date(m.t).getTime() + offset;
-          const passed   = now >= ms;
-          const isActive = i === activeIdx;
-          const diff     = ms - now;
-          const isNext   = i === activeIdx + 1;
-          return (
-            <div key={m.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "5px 0", opacity: passed && !isActive ? 0.4 : 1, transition: "opacity 0.4s" }}>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 3 }}>
-                <div style={{
-                  width: isActive ? 10 : 7, height: isActive ? 10 : 7, borderRadius: "50%", flexShrink: 0,
-                  background: isActive ? "var(--color-green)" : passed ? "var(--color-text-ghost)" : isNext ? "var(--color-amber)" : "var(--color-border-hover)",
-                  boxShadow: isActive ? "0 0 8px rgba(67,181,129,0.8)" : "none",
-                  animation: isActive ? "pulse 1.2s infinite" : "none",
-                  transition: "all 0.3s",
-                }} />
-                {i < MILESTONES.length - 1 && (
-                  <div style={{ width: 1, height: 18, background: passed ? "var(--color-text-ghost)" : "var(--color-border)", marginTop: 3 }} />
-                )}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{
-                  fontSize: 11, fontFamily: "var(--font-sans)", fontWeight: isActive || isNext ? 600 : 500,
-                  color: isActive ? "var(--color-green)" : isNext ? "var(--color-text)" : passed ? "var(--color-text-dim)" : "var(--color-text-muted)",
-                  transition: "color 0.3s",
-                }}>
-                  {m.label}
-                </div>
-                <div style={{
-                  fontSize: 9, fontFamily: "var(--font-mono)", marginTop: 1,
-                  color: isActive ? "var(--color-green)" : isNext ? "var(--color-amber)" : "var(--color-text-ghost)",
-                }}>
-                  {passed
-                    ? `T+${fmtRel(now - ms)} ago`
-                    : isNext
-                      ? `T-${fmtRel(diff)}`
-                      : new Date(new Date(m.t).getTime() + offset).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" }) + " ET"
-                  }
-                </div>
-              </div>
-            </div>
-          );
-        })}
+
+      <div
+        ref={containerRef}
+        className="mc-timeline-viewport"
+        style={{ height: H }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+      >
+        <svg
+          width={W}
+          height={H}
+          viewBox={`0 0 ${W} ${H}`}
+          style={{ display: "block", userSelect: "none" }}
+        >
+          <g>
+            {/* Arc track */}
+            <path
+              d={arcPath}
+              fill="none"
+              stroke="rgba(255,255,255,0.18)"
+              strokeWidth="3"
+              strokeLinecap="round"
+            />
+
+            {/* Nodes + labels */}
+            {MILESTONES.map((m, i) => {
+              const { svgX, svgY } = nodePos(i);
+              if (svgX < -60 || svgX > W + 60) return null;
+
+              const ms       = new Date(m.t).getTime() + offset;
+              const passed   = now >= ms;
+              const isActive = i === activeIdx;
+              const isNext   = i === activeIdx + 1;
+              const diff     = ms - now;
+
+              const above     = i % 2 === 0;
+              const dotR      = isActive ? 7 : isNext ? 5.5 : 4.5;
+              const tickStart = above ? svgY - dotR - TICK_GAP : svgY + dotR + TICK_GAP;
+              const tickEnd   = above ? ABOVE_NAME_Y + 16 : BELOW_NAME_Y - 14;
+              const nameY     = above ? ABOVE_NAME_Y : BELOW_NAME_Y;
+              const timeY     = above ? ABOVE_TIME_Y : BELOW_TIME_Y;
+
+              const confirmed = m.confirmed !== false; // true = confirmed event
+              const dotFill   = isActive ? "var(--color-green)"
+                : isNext      ? "var(--color-amber)"
+                : passed      ? "rgba(255,255,255,0.25)"
+                : confirmed   ? "rgba(255,255,255,0.15)"
+                :                "transparent";
+
+              const dotStroke = isActive ? "none"
+                : isNext      ? "none"
+                : !confirmed  ? "rgba(255,255,255,0.35)"
+                :                "rgba(255,255,255,0.3)";
+
+              const labelCol  = isActive ? "var(--color-green)"
+                : isNext      ? "#fff"
+                : passed      ? "var(--color-text-dim)"
+                :                "var(--color-text-muted)";
+
+              const timeCol   = isActive ? "var(--color-green)"
+                : isNext      ? "var(--color-amber)"
+                :                "var(--color-text-ghost)";
+
+              const timeLabel = passed
+                ? `T+${fmtRel(now - ms)}`
+                : confirmed
+                  ? `T-${fmtRel(Math.abs(diff))}`
+                  : `~T-${fmtRel(Math.abs(diff))}`;
+
+              // Fade by distance from centre
+              const dist    = Math.abs(svgX - CX);
+              const distOp  = Math.max(0.12, 1 - (dist / (HALF_SPAN * 0.85)) * 0.78);
+              const opacity = (passed && !isActive ? 0.55 : 1) * distOp;
+
+              return (
+                <g key={m.id} style={{ opacity, transition: "opacity 0.15s" }}>
+                  {/* Tick */}
+                  <line
+                    x1={svgX} y1={tickStart} x2={svgX} y2={tickEnd}
+                    stroke={isActive ? "var(--color-green)" : "rgba(255,255,255,0.2)"}
+                    strokeWidth={isActive ? 2 : 1.5}
+                  />
+
+                  {/* Active outer ring */}
+                  {isActive && (
+                    <circle cx={svgX} cy={svgY} r={dotR + 7}
+                      fill="none" stroke="var(--color-green)" strokeWidth="1.5" opacity="0.4" />
+                  )}
+
+                  {/* Dot */}
+                  <circle cx={svgX} cy={svgY} r={dotR}
+                    fill={dotFill} stroke={dotStroke} strokeWidth="1.5" />
+
+                  {/* Name */}
+                  <text x={svgX} y={nameY} textAnchor="middle"
+                    fill={labelCol} fontSize="9.5" fontFamily="var(--font-sans)"
+                    fontWeight={isActive || isNext ? "700" : "500"}>
+                    {m.label}
+                  </text>
+
+                  {/* Time */}
+                  <text x={svgX} y={timeY} textAnchor="middle"
+                    fill={timeCol} fontSize="8" fontFamily="var(--font-mono)">
+                    {timeLabel}
+                  </text>
+                </g>
+              );
+            })}
+          </g>
+
+
+        </svg>
       </div>
     </div>
   );
@@ -800,7 +1150,7 @@ function LiveUpdatesFeed({ updates, loading, isLive, fetchError, lastUpdated, on
 }
 
 // ─── Draggable Stream Grid ────────────────────────────────────────────────
-function DraggableStreamGrid({ streams, setStreams, layout, iframeKey, onToggleMute, onRemove, featuredId, onFeature }) {
+function DraggableStreamGrid({ streams, setStreams, layout, iframeKey, onToggleMute, onRemove, featuredId, onFeature, isMobile, isLandscape }) {
   const [previewStreams, setPreviewStreams] = useState(streams);
   const [draggingId,    setDraggingId]     = useState(null);
   const stableIdsRef  = useRef(streams.map((s) => s.id));
@@ -816,7 +1166,52 @@ function DraggableStreamGrid({ streams, setStreams, layout, iframeKey, onToggleM
   }, [streams, draggingId]);
 
   const getGridStyle = () => {
+    // Portrait mobile: CSS handles layout entirely
+    if (isMobile && !isLandscape) return {};
+
     const c = previewStreams.length;
+
+    // ── Landscape phone: layout-aware, height:auto, aspect-ratio drives cell height ──
+    if (isLandscape) {
+      const gap = 5;
+      if (layout === "gallery") {
+        // 2 columns, equal width
+        const cols = c <= 1 ? 1 : 2;
+        return { display: "grid", gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))`, gap, height: "auto" };
+      }
+      if (layout === "triple") {
+        // Up to 3 columns
+        const cols = Math.min(3, Math.max(1, c));
+        return { display: "grid", gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))`, gap, height: "auto" };
+      }
+      if (layout === "speaker" && c > 1) {
+        // Main (left, 2/3) + sidebar column (right, 1/3)
+        // Sidebar stacks remaining streams vertically
+        return {
+          display: "grid",
+          gridTemplateColumns: "2fr 1fr",
+          gridTemplateRows: `repeat(${c - 1}, auto)`,
+          gap,
+          height: "auto",
+          alignItems: "start",
+        };
+      }
+      if (layout === "cinema" && c > 1) {
+        // Main stream on top (full width), thumbnails row below
+        const thumbCols = c - 1;
+        return {
+          display: "grid",
+          gridTemplateColumns: `repeat(${thumbCols}, minmax(0,1fr))`,
+          gridTemplateRows: "auto auto",
+          gap,
+          height: "auto",
+        };
+      }
+      // Fallback / single stream
+      return { display: "grid", gridTemplateColumns: "1fr", gap, height: "auto" };
+    }
+
+    // ── Desktop ────────────────────────────────────────────────────────────
     if (layout === "speaker") return {
       display: "grid",
       gridTemplateColumns: c > 1 ? "minmax(0,1fr) 280px" : "minmax(0,1fr)",
@@ -840,6 +1235,35 @@ function DraggableStreamGrid({ streams, setStreams, layout, iframeKey, onToggleM
   };
 
   const getItemStyle = (visualIdx, cnt) => {
+    // Portrait mobile: CSS handles it
+    if (isMobile && !isLandscape) return {};
+
+    // ── Landscape: each wrapper uses aspect-ratio 16/9 except where overridden ──
+    if (isLandscape) {
+      const base = { width: "100%", height: "auto", aspectRatio: "16/9", minHeight: 0, minWidth: 0 };
+
+      if (layout === "speaker" && cnt > 1) {
+        if (visualIdx === 0) {
+          // Main: left column, spans all sidebar rows
+          return { ...base, gridColumn: "1 / 2", gridRow: `1 / span ${cnt - 1}` };
+        }
+        // Sidebar thumbnails: right column, each in its own row
+        return { ...base, gridColumn: "2 / 3", gridRow: `${visualIdx} / span 1` };
+      }
+
+      if (layout === "cinema" && cnt > 1) {
+        if (visualIdx === 0) {
+          // Main: full width top row
+          return { ...base, gridColumn: "1 / -1", gridRow: "1 / 2" };
+        }
+        // Thumbnails: bottom row, share columns
+        return { ...base, gridRow: "2 / 3" };
+      }
+
+      return base;
+    }
+
+    // ── Desktop ────────────────────────────────────────────────────────────
     let s = { minHeight: 0, minWidth: 0, height: "100%", width: "100%" };
     if (layout === "speaker" && cnt > 1) {
       if (visualIdx === 0) s = { ...s, gridColumn: "1/2", gridRow: `1/span ${cnt-1}` };
@@ -851,7 +1275,6 @@ function DraggableStreamGrid({ streams, setStreams, layout, iframeKey, onToggleM
     return s;
   };
 
-  // ── Mouse drag handlers ──────────────────────────────────────────────
   const handleDragStart = useCallback((e, s) => {
     setDraggingId(s.id);
     e.dataTransfer.effectAllowed = "move";
@@ -883,9 +1306,7 @@ function DraggableStreamGrid({ streams, setStreams, layout, iframeKey, onToggleM
     setDraggingId(null);
   }, [previewStreams, setStreams]);
 
-  // ── Touch drag handlers ──────────────────────────────────────────────
   const getElementIdAtPoint = useCallback((x, y, excludeId) => {
-    // Temporarily hide the dragging element so elementFromPoint finds the target beneath
     const draggingEl = containerRef.current?.querySelector(`[data-stream-id="${excludeId}"]`);
     if (draggingEl) draggingEl.style.pointerEvents = "none";
     const el = document.elementFromPoint(x, y);
@@ -897,12 +1318,7 @@ function DraggableStreamGrid({ streams, setStreams, layout, iframeKey, onToggleM
 
   const handleTouchStart = useCallback((e, streamId) => {
     const touch = e.touches[0];
-    touchDragRef.current = {
-      active: false, // becomes true after sufficient movement
-      id: streamId,
-      startX: touch.clientX,
-      startY: touch.clientY,
-    };
+    touchDragRef.current = { active: false, id: streamId, startX: touch.clientX, startY: touch.clientY };
   }, []);
 
   const handleTouchMove = useCallback((e) => {
@@ -911,16 +1327,9 @@ function DraggableStreamGrid({ streams, setStreams, layout, iframeKey, onToggleM
     const touch = e.touches[0];
     const dx = Math.abs(touch.clientX - ref.startX);
     const dy = Math.abs(touch.clientY - ref.startY);
-
-    // Activate drag after 8px movement
-    if (!ref.active && (dx > 8 || dy > 8)) {
-      ref.active = true;
-      setDraggingId(ref.id);
-    }
-
+    if (!ref.active && (dx > 8 || dy > 8)) { ref.active = true; setDraggingId(ref.id); }
     if (!ref.active) return;
-    e.preventDefault(); // prevent scroll while dragging
-
+    e.preventDefault();
     const targetId = getElementIdAtPoint(touch.clientX, touch.clientY, ref.id);
     if (targetId && targetId !== ref.id) {
       setPreviewStreams((prev) => {
@@ -936,9 +1345,7 @@ function DraggableStreamGrid({ streams, setStreams, layout, iframeKey, onToggleM
   }, [getElementIdAtPoint]);
 
   const handleTouchEnd = useCallback(() => {
-    if (touchDragRef.current.active) {
-      setStreams(previewStreams);
-    }
+    if (touchDragRef.current.active) setStreams(previewStreams);
     touchDragRef.current = { active: false, id: null, startX: 0, startY: 0 };
     setDraggingId(null);
   }, [previewStreams, setStreams]);
@@ -954,8 +1361,8 @@ function DraggableStreamGrid({ streams, setStreams, layout, iframeKey, onToggleM
     <div
       ref={containerRef}
       style={getGridStyle()}
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={handleDrop}
+      onDragOver={!isMobile ? (e) => e.preventDefault() : undefined}
+      onDrop={!isMobile ? handleDrop : undefined}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
@@ -964,25 +1371,23 @@ function DraggableStreamGrid({ streams, setStreams, layout, iframeKey, onToggleM
         if (!streamData) return null;
         const visualIndex = previewStreams.findIndex((p) => p.id === id);
         if (visualIndex === -1) return null;
+
+        const mobileClass = isMobile
+          ? featuredId === id ? "is-featured" : featuredId ? "is-collapsed" : ""
+          : "";
+
         return (
           <div
             key={id}
             data-stream-id={id}
-            style={{ ...getItemStyle(visualIndex, previewStreams.length), order: visualIndex }}
-            className={`mc-stream-wrapper ${draggingId === id ? "is-active-drag" : ""} ${
-              window.innerWidth <= 767
-                ? featuredId === id
-                  ? "is-featured"
-                  : featuredId
-                    ? "is-collapsed"
-                    : ""
-                : ""
-            }`}
-            draggable
-            onDragStart={(e) => handleDragStart(e, streamData)}
-            onDragOver={(e) => handleDragOver(e, id)}
-            onDrop={handleDrop}
-            onDragEnd={() => setDraggingId(null)}
+            data-main={isLandscape && visualIndex === 0 && (layout === "speaker" || layout === "cinema") && previewStreams.length > 1 ? "true" : undefined}
+            style={(isMobile && !isLandscape) ? {} : { ...getItemStyle(visualIndex, previewStreams.length), order: isLandscape ? undefined : visualIndex }}
+            className={`mc-stream-wrapper ${draggingId === id ? "is-active-drag" : ""} ${mobileClass}`}
+            draggable={!isMobile && !isLandscape}
+            onDragStart={!isMobile ? (e) => handleDragStart(e, streamData) : undefined}
+            onDragOver={!isMobile ? (e) => handleDragOver(e, id) : undefined}
+            onDrop={!isMobile ? handleDrop : undefined}
+            onDragEnd={!isMobile ? () => setDraggingId(null) : undefined}
             onTouchStart={(e) => handleTouchStart(e, id)}
           >
             <StreamCard
@@ -1018,6 +1423,72 @@ function MobileSidebar({ open, onClose, children }) {
   );
 }
 
+// ─── Mobile Bottom Nav Bar — iOS HIG style ────────────────────────────────
+function MobileNavBar({ onAddStream, onRefresh, streamCount, onInfo }) {
+  // Each tab: 49px content + safe-area. Icon 24px, label 10px, gap 3px.
+  const btnStyle = {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+    background: "none",
+    border: "none",
+    color: "var(--color-text-muted)",
+    cursor: "pointer",
+    // 49px matches Apple's HIG tab bar content height
+    height: 49,
+    padding: "6px 0 4px",
+    WebkitTapHighlightColor: "transparent",
+    minWidth: 0,
+    flexShrink: 0,
+  };
+  const labelStyle = {
+    fontSize: 10,
+    fontFamily: "var(--font-sans)",
+    fontWeight: 500,
+    letterSpacing: "0.2px",
+    lineHeight: 1,
+    color: "var(--color-text-muted)",
+  };
+
+  return (
+    <nav className="mc-mobile-nav-bar">
+      <button style={btnStyle} onClick={onRefresh}>
+        <span className="material-symbols-outlined" style={{ fontSize: 24 }}>refresh</span>
+        <span style={labelStyle}>Reload</span>
+      </button>
+
+      <button style={btnStyle} onClick={onAddStream}>
+        <span className="material-symbols-outlined" style={{ fontSize: 24 }}>add_circle</span>
+        <span style={labelStyle}>Add Feed</span>
+      </button>
+
+      {/* Center: live feed count */}
+      <div style={{ ...btnStyle, cursor: "default" }}>
+        <span style={{
+          fontFamily: "var(--font-mono)",
+          fontSize: 18,
+          fontWeight: 700,
+          color: "var(--color-text-secondary)",
+          lineHeight: 1,
+        }}>
+          {streamCount}
+        </span>
+        <span style={{ ...labelStyle, fontSize: 10 }}>
+          {streamCount === 1 ? "Feed" : "Feeds"}
+        </span>
+      </div>
+
+      <button style={btnStyle} onClick={onInfo}>
+        <span className="material-symbols-outlined" style={{ fontSize: 24 }}>info</span>
+        <span style={labelStyle}>Details</span>
+      </button>
+    </nav>
+  );
+}
+
 // ─── Main App ─────────────────────────────────────────────────────────────
 export default function MissionControl() {
   const [streams, setStreams] = useState(() => {
@@ -1030,15 +1501,18 @@ export default function MissionControl() {
     return DEFAULT_STREAMS;
   });
 
-  const [layout,         setLayout]         = useState("gallery");
-  const [showAdd,        setShowAdd]        = useState(false);
-  const [sidebarOpen,    setSidebarOpen]    = useState(true);
-  const [sidebarClosing, setSidebarClosing] = useState(false);
-  const [sidebarOpening, setSidebarOpening] = useState(false);
+  const [layout,          setLayout]          = useState("gallery");
+  const [showAdd,         setShowAdd]         = useState(false);
+  const [sidebarOpen,     setSidebarOpen]     = useState(true);
+  const [sidebarClosing,  setSidebarClosing]  = useState(false);
+  const [sidebarOpening,  setSidebarOpening]  = useState(false);
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
-  const [targetOverride, setTargetOverride] = useState(null);
-  const [iframeKey,      setIframeKey]      = useState(0);
-  const [featuredId,     setFeaturedId]     = useState(null);
+  const [targetOverride,  setTargetOverride]  = useState(null);
+  const [iframeKey,       setIframeKey]       = useState(0);
+  const [featuredId,      setFeaturedId]      = useState(null);
+
+  const isMobile    = useIsMobile();
+  const isLandscape = useIsLandscape();
 
   const nasaData = useNASALiveData();
   const ll2      = useLL2LaunchData();
@@ -1051,7 +1525,7 @@ export default function MissionControl() {
   const toggleMute   = useCallback((id) => { setStreams((p) => p.map((s) => s.id === id ? { ...s, muted: !s.muted } : s)); }, []);
   const removeStream = useCallback((id) => { setStreams((p) => p.filter((s) => s.id !== id)); }, []);
   const addStream    = useCallback((s)  => { setStreams((p) => [...p, s]); }, []);
-  const resetStreams = useCallback(() => {
+  const resetStreams  = useCallback(() => {
     setStreams(DEFAULT_STREAMS);
     localStorage.removeItem("mc-saved-streams");
   }, []);
@@ -1125,6 +1599,7 @@ export default function MissionControl() {
       <header className="mc-header">
         <div className="mc-scanline-overlay"><div className="mc-scanline-bar" /></div>
 
+        {/* Desktop: left branding */}
         <div className="mc-header-left">
           <div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
@@ -1135,7 +1610,9 @@ export default function MissionControl() {
           </div>
         </div>
 
+        {/* Center: desktop has countdown+clock; mobile splits into 3 zones */}
         <div className="mc-header-center">
+          {/* Desktop: countdown left, divider, clock right — all in center column */}
           <CountdownTimer targetOverride={targetOverride} onOverride={setTargetOverride} />
           <div className="mc-divider-v mc-hide-mobile" />
           <div className="mc-hide-mobile">
@@ -1143,7 +1620,14 @@ export default function MissionControl() {
           </div>
         </div>
 
+        {/* Mobile clock: sits centered between countdown and info btn via CSS */}
+        <div className="mc-mobile-clock-center">
+          <StatusClock />
+        </div>
+
+        {/* Right: desktop sidebar toggle + landscape-mobile info btn */}
         <div className="mc-header-right">
+          {/* Desktop only */}
           <button
             className={`mc-btn mc-btn-ghost mc-btn-sm mc-hide-mobile ${sidebarOpen ? "active" : ""}`}
             onClick={handleSidebarToggle}
@@ -1153,17 +1637,20 @@ export default function MissionControl() {
             </span>
             {sidebarOpen ? "Hide Panel" : "Show Panel"}
           </button>
+          {/* Landscape mobile — shown via CSS landscape query only */}
           <button
-            className="mc-btn mc-btn-ghost mc-btn-sm mc-show-mobile mc-info-btn"
+            className="mc-landscape-info-btn"
             onClick={() => setMobilePanelOpen(true)}
+            title="Mission details"
           >
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>info</span>
+            <span className="material-symbols-outlined">info</span>
           </button>
         </div>
       </header>
 
       <div className="mc-main">
         <div className="mc-streams-area">
+          {/* Controls bar: shown on desktop + landscape mobile (hidden portrait via CSS) */}
           <div className="mc-controls-bar">
             <div className="mc-layout-group">
               {Object.entries(LAYOUTS).map(([key, val]) => (
@@ -1203,6 +1690,8 @@ export default function MissionControl() {
               onRemove={removeStream}
               featuredId={featuredId}
               onFeature={setFeaturedId}
+              isMobile={isMobile}
+              isLandscape={isLandscape}
             />
           </div>
         </div>
@@ -1217,7 +1706,17 @@ export default function MissionControl() {
         )}
       </div>
 
-      {/* Mobile bottom sheet */}
+      {/* Mobile bottom nav */}
+      {isMobile && (
+        <MobileNavBar
+          onAddStream={() => setShowAdd(true)}
+          onRefresh={() => setIframeKey((k) => k + 1)}
+          onInfo={() => setMobilePanelOpen(true)}
+          streamCount={streams.length}
+        />
+      )}
+
+      {/* Mobile info sheet */}
       <MobileSidebar open={mobilePanelOpen} onClose={() => setMobilePanelOpen(false)}>
         {sidebarContent}
       </MobileSidebar>

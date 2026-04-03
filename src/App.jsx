@@ -668,40 +668,58 @@ function MissionStatusPanel({ ll2 }) {
 }
 
 // ─── Mission Milestones ───────────────────────────────────────────────────
-// Milestones sourced from NASA official publications and confirmed live coverage.
-// Ascent MET times from NASA Artemis II launch day blog (newspaceeconomy.ca summary).
-// Post-ascent times from NASA coverage schedule and live updates as of April 2, 2026.
-// Times marked with ~ are planned/scheduled and subject to change.
-const LIFTOFF_T = WINDOW_OPEN; // April 1, 2026 6:35 PM EDT — confirmed by NASA
-const met = (h, m, s) => {
+// Sources:
+//   Ascent MET: NASA Artemis II launch day blog + New Space Economy summary
+//   Orbit/departure: NASA blog confirmed updates as of Apr 2, 2026
+//   TLI: Planetary Society confirmed ~4:57 PM PT Apr 2 (00:12 UTC Apr 3)
+//   Outbound TCMs: Planetary Society "Days 3–5 three corrections"; mid-day estimates
+//   Lunar flyby: NASA coverage schedule (Apr 6); distance record 1:45 PM EDT Apr 6
+//   Return TCMs: NASA daily agenda Days 7–9; Planetary Society structure
+//   Splashdown: NASA public schedule 8:06 PM EDT Apr 10 = 00:06 UTC Apr 11
+// confirmed:true  = executed, verified by NASA
+// confirmed:false = planned/estimated, subject to change
+const LIFTOFF_T = WINDOW_OPEN; // April 1, 2026 6:35:12 PM EDT = 22:35:12 UTC
+const met = (h, m, s = 0) => {
   const base = new Date(LIFTOFF_T).getTime();
   return new Date(base + ((h * 3600) + (m * 60) + s) * 1000).toISOString();
 };
 
 const MILESTONES = [
-  // ── Ascent (MET times from NASA launch blog) ──────────────────────────
-  { id: "liftoff",   label: "Liftoff",          t: LIFTOFF_T,       confirmed: true  },
-  { id: "maxq",      label: "Max-Q",            t: met(0, 1, 12),   confirmed: true  },
-  { id: "srbsep",    label: "Booster Sep",      t: met(0, 2, 9),    confirmed: true  },
-  { id: "meco",      label: "Main Engine Cutoff",t: met(0, 8, 2),   confirmed: true  },
-  { id: "cssep",     label: "Core Stage Sep",   t: met(0, 8, 14),   confirmed: true  },
-  { id: "sawdeploy", label: "Solar Arrays",     t: met(0, 18, 0),   confirmed: true  },
-  // ── Early orbit ───────────────────────────────────────────────────────
-  { id: "prm",       label: "Perigee Raise Burn",t: "2026-04-02T11:00:00Z", confirmed: true  },
+  // ── Ascent ────────────────────────────────────────────────────────────
+  { id: "liftoff",  label: "Liftoff",            t: LIFTOFF_T,         confirmed: true  },
+  { id: "maxq",     label: "Max-Q",              t: met(0, 1, 12),     confirmed: true  },
+  { id: "srbsep",   label: "Booster Sep",        t: met(0, 2, 9),      confirmed: true  },
+  { id: "lasjett",  label: "LAS Jettison",       t: met(0, 3, 13),     confirmed: true  },
+  { id: "meco",     label: "Core MECO",          t: met(0, 8, 2),      confirmed: true  },
+  { id: "cssep",    label: "Core Stage Sep",     t: met(0, 8, 14),     confirmed: true  },
+  { id: "sawdeploy",label: "Solar Arrays",       t: met(0, 18, 0),     confirmed: true  },
+  // ── Earth orbit ───────────────────────────────────────────────────────
+  { id: "icpsburn2",label: "ICPS Orbit Burn",    t: met(1, 48, 0),     confirmed: true  },
+  { id: "icpssep",  label: "ICPS Separation",    t: met(3, 0, 0),      confirmed: true  },
+  { id: "proxops",  label: "Prox Ops Begin",     t: met(3, 24, 15),    confirmed: true  },
+  { id: "proxend",  label: "Prox Ops End",       t: met(4, 30, 0),     confirmed: true  },
+  { id: "arb",      label: "Apogee Raise Burn",  t: met(5, 30, 0),     confirmed: true  },
+  { id: "prm2",     label: "Perigee Raise Burn", t: "2026-04-02T11:09:00Z", confirmed: true },
   // ── Departure ─────────────────────────────────────────────────────────
-  { id: "tli",       label: "Trans-Lunar Injection", t: "2026-04-02T23:49:00Z", confirmed: false },
-  // ── Outbound ──────────────────────────────────────────────────────────
-  { id: "rec1",      label: "Outbound Correction", t: "2026-04-03T20:00:00Z", confirmed: false },
+  { id: "tli",      label: "Trans-Lunar Injection", t: "2026-04-03T00:12:00Z", confirmed: true },
+  // ── Outbound coast — 3 trajectory corrections (Days 3–5) ─────────────
+  { id: "tcm1",     label: "Outbound TCM-1",     t: "2026-04-04T14:00:00Z", confirmed: false },
+  { id: "tcm2",     label: "Outbound TCM-2",     t: "2026-04-05T14:00:00Z", confirmed: false },
+  { id: "tcm3",     label: "Outbound TCM-3",     t: "2026-04-06T00:00:00Z", confirmed: false },
   // ── Lunar encounter ───────────────────────────────────────────────────
-  { id: "distrecord",label: "Distance Record",  t: "2026-04-06T17:45:00Z", confirmed: false },
-  { id: "lunar",     label: "Lunar Flyby",      t: "2026-04-06T20:00:00Z", confirmed: false },
-  // ── Return ────────────────────────────────────────────────────────────
-  { id: "ret1",      label: "Return Burn 1",    t: "2026-04-07T18:00:00Z", confirmed: false },
-  { id: "ret2",      label: "Return Burn 2",    t: "2026-04-08T18:00:00Z", confirmed: false },
-  { id: "ret3",      label: "Return Burn 3",    t: "2026-04-09T18:00:00Z", confirmed: false },
+  { id: "loientry", label: "Lunar SOI Entry",    t: "2026-04-06T06:00:00Z", confirmed: false },
+  { id: "distrecord",label: "Distance Record",   t: "2026-04-06T17:45:00Z", confirmed: false },
+  { id: "lunar",    label: "Lunar Flyby",        t: "2026-04-06T20:00:00Z", confirmed: false },
+  { id: "commsout", label: "Comms Blackout",     t: "2026-04-06T19:30:00Z", confirmed: false },
+  { id: "commback", label: "Comms Restored",     t: "2026-04-06T20:30:00Z", confirmed: false },
+  // ── Return coast — 3 trajectory corrections (Days 7–9) ───────────────
+  { id: "rtcm1",    label: "Return TCM-1",       t: "2026-04-07T18:00:00Z", confirmed: false },
+  { id: "rtcm2",    label: "Return TCM-2",       t: "2026-04-08T18:00:00Z", confirmed: false },
+  { id: "rtcm3",    label: "Return TCM-3",       t: "2026-04-09T18:00:00Z", confirmed: false },
   // ── Entry & recovery ──────────────────────────────────────────────────
-  { id: "sep",       label: "CM Separation",    t: "2026-04-11T00:00:00Z", confirmed: false },
-  { id: "splashdown",label: "Splashdown",       t: "2026-04-11T00:06:00Z", confirmed: false },
+  { id: "smsep",    label: "SM Separation",      t: "2026-04-11T00:00:00Z", confirmed: false },
+  { id: "entry",    label: "Reentry",            t: "2026-04-11T00:02:00Z", confirmed: false },
+  { id: "splashdown",label: "Splashdown",        t: "2026-04-11T00:06:00Z", confirmed: false },
 ];
 
 function MilestonesTimeline({ targetOverride }) {
@@ -1503,9 +1521,9 @@ export default function MissionControl() {
 
   const [layout,          setLayout]          = useState("gallery");
   const [showAdd,         setShowAdd]         = useState(false);
-  const [sidebarOpen,     setSidebarOpen]     = useState(true);
-  const [sidebarClosing,  setSidebarClosing]  = useState(false);
-  const [sidebarOpening,  setSidebarOpening]  = useState(false);
+  const [sidebarOpen,    setSidebarOpen]    = useState(true);
+  const [sidebarClosing, setSidebarClosing] = useState(false);
+  const [sidebarOpening, setSidebarOpening] = useState(false);
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const [targetOverride,  setTargetOverride]  = useState(null);
   const [iframeKey,       setIframeKey]       = useState(0);
@@ -1543,7 +1561,6 @@ export default function MissionControl() {
 
   const sidebarContent = (
     <>
-      <MissionStatusPanel ll2={ll2} />
       <KSCWeatherPanel wx={wx} />
       <MilestonesTimeline targetOverride={targetOverride} />
 

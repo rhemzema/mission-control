@@ -382,7 +382,10 @@ function parseNASARSS(data) {
           ? (() => {
               const iso = item.pubDate.replace(" ", "T") + "Z";
               const d = new Date(iso);
-              return isNaN(d.getTime()) ? "" : d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" }) + " ET";
+              if (isNaN(d.getTime())) return "";
+              const date = d.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit", timeZone: "America/New_York" });
+              const time = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "America/New_York" });
+              return `${date} · ${time} ET`;
             })()
           : "",
         headline: (item.title || "").substring(0, 100),
@@ -396,7 +399,14 @@ function parseNASARSS(data) {
       const pubDate = item.querySelector("pubDate")?.textContent?.trim() || "";
       const desc    = item.querySelector("description")?.textContent?.trim() || "";
       return {
-        time:     pubDate ? new Date(pubDate).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" }) + " ET" : "",
+        time: (() => {
+            if (!pubDate) return "";
+            const d = new Date(pubDate);
+            if (isNaN(d.getTime())) return "";
+            const date = d.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit", timeZone: "America/New_York" });
+            const time = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "America/New_York" });
+            return `${date} · ${time} ET`;
+          })(),
         headline: title.substring(0, 100),
         detail:   desc.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().substring(0, 220),
       };
@@ -668,16 +678,18 @@ function MissionStatusPanel({ ll2 }) {
 }
 
 // ─── Mission Milestones ───────────────────────────────────────────────────
-// Sources:
-//   Ascent MET: NASA Artemis II launch day blog + New Space Economy summary
-//   Orbit/departure: NASA blog confirmed updates as of Apr 2, 2026
-//   TLI: Planetary Society confirmed ~4:57 PM PT Apr 2 (00:12 UTC Apr 3)
-//   Outbound TCMs: Planetary Society "Days 3–5 three corrections"; mid-day estimates
-//   Lunar flyby: NASA coverage schedule (Apr 6); distance record 1:45 PM EDT Apr 6
-//   Return TCMs: NASA daily agenda Days 7–9; Planetary Society structure
-//   Splashdown: NASA public schedule 8:06 PM EDT Apr 10 = 00:06 UTC Apr 11
-// confirmed:true  = executed, verified by NASA
-// confirmed:false = planned/estimated, subject to change
+// Sources (updated Apr 6, 2026):
+//   Ascent MET: NASA Artemis II launch day blog
+//   TLI: Space.com live — 7:49 PM EDT Apr 2 = 23:49 UTC, duration 5m 55s
+//   TCM-1: Cancelled — NASA Flight Day 3 blog (trajectory precise)
+//   TCM-2: NASA FD-3 blog — 6:49 PM EDT Apr 3 = 22:49 UTC, 8-sec burn
+//   TCM-3: NASA FD-5 blog — 11:03 PM EDT Apr 5 = 03:03 UTC Apr 6
+//   Lunar SOI: NASA FD-6 blog — 12:37 AM EDT Apr 6 = 04:37 UTC
+//   Distance record: NASA FAQ (updated Apr 5) — 1:56 PM EDT = 17:56 UTC
+//   Flyby schedule: NASA FD-5/FD-6 blogs — all times EDT Apr 6
+//   Splashdown: NASA FAQ — 8:07 PM EDT Apr 10 = 00:07 UTC Apr 11
+// confirmed:true  = executed or NASA-scheduled with exact time
+// confirmed:false = planned/estimated, no exact time published
 const LIFTOFF_T = WINDOW_OPEN; // April 1, 2026 6:35:12 PM EDT = 22:35:12 UTC
 const met = (h, m, s = 0) => {
   const base = new Date(LIFTOFF_T).getTime();
@@ -685,41 +697,55 @@ const met = (h, m, s = 0) => {
 };
 
 const MILESTONES = [
-  // ── Ascent ────────────────────────────────────────────────────────────
-  { id: "liftoff",  label: "Liftoff",            t: LIFTOFF_T,         confirmed: true  },
-  { id: "maxq",     label: "Max-Q",              t: met(0, 1, 12),     confirmed: true  },
-  { id: "srbsep",   label: "Booster Sep",        t: met(0, 2, 9),      confirmed: true  },
-  { id: "lasjett",  label: "LAS Jettison",       t: met(0, 3, 13),     confirmed: true  },
-  { id: "meco",     label: "Core MECO",          t: met(0, 8, 2),      confirmed: true  },
-  { id: "cssep",    label: "Core Stage Sep",     t: met(0, 8, 14),     confirmed: true  },
-  { id: "sawdeploy",label: "Solar Arrays",       t: met(0, 18, 0),     confirmed: true  },
-  // ── Earth orbit ───────────────────────────────────────────────────────
-  { id: "icpsburn2",label: "ICPS Orbit Burn",    t: met(1, 48, 0),     confirmed: true  },
-  { id: "icpssep",  label: "ICPS Separation",    t: met(3, 0, 0),      confirmed: true  },
-  { id: "proxops",  label: "Prox Ops Begin",     t: met(3, 24, 15),    confirmed: true  },
-  { id: "proxend",  label: "Prox Ops End",       t: met(4, 30, 0),     confirmed: true  },
-  { id: "arb",      label: "Apogee Raise Burn",  t: met(5, 30, 0),     confirmed: true  },
-  { id: "prm2",     label: "Perigee Raise Burn", t: "2026-04-02T11:09:00Z", confirmed: true },
-  // ── Departure ─────────────────────────────────────────────────────────
-  { id: "tli",      label: "Trans-Lunar Injection", t: "2026-04-03T00:12:00Z", confirmed: true },
-  // ── Outbound coast — 3 trajectory corrections (Days 3–5) ─────────────
-  { id: "tcm1",     label: "Outbound TCM-1",     t: "2026-04-04T14:00:00Z", confirmed: false },
-  { id: "tcm2",     label: "Outbound TCM-2",     t: "2026-04-05T14:00:00Z", confirmed: false },
-  { id: "tcm3",     label: "Outbound TCM-3",     t: "2026-04-06T00:00:00Z", confirmed: false },
+  // ── Ascent — MET times from NASA launch blog, all confirmed ──────────
+  { id: "liftoff",   label: "Liftoff",            t: LIFTOFF_T,              confirmed: true  },
+  { id: "maxq",      label: "Max-Q",              t: met(0, 1, 12),          confirmed: true  },
+  { id: "srbsep",    label: "Booster Sep",        t: met(0, 2, 9),           confirmed: true  },
+  { id: "lasjett",   label: "LAS Jettison",       t: met(0, 3, 13),          confirmed: true  },
+  { id: "meco",      label: "Core MECO",          t: met(0, 8, 2),           confirmed: true  },
+  { id: "cssep",     label: "Core Stage Sep",     t: met(0, 8, 14),          confirmed: true  },
+  { id: "sawdeploy", label: "Solar Arrays",       t: met(0, 18, 0),          confirmed: true  },
+  // ── Earth orbit — all confirmed ───────────────────────────────────────
+  { id: "icpsburn2", label: "ICPS Orbit Burn",    t: met(1, 48, 0),          confirmed: true  },
+  { id: "icpssep",   label: "ICPS Separation",    t: met(3, 0, 0),           confirmed: true  },
+  { id: "proxops",   label: "Prox Ops Begin",     t: met(3, 24, 15),         confirmed: true  },
+  { id: "proxend",   label: "Prox Ops End",       t: met(4, 30, 0),          confirmed: true  },
+  { id: "arb",       label: "Apogee Raise Burn",  t: met(5, 30, 0),          confirmed: true  },
+  { id: "prm2",      label: "Perigee Raise Burn", t: "2026-04-02T11:09:00Z", confirmed: true  },
+  // ── Departure — TLI confirmed 7:49 PM EDT Apr 2 = 23:49 UTC ──────────
+  { id: "tli",       label: "Trans-Lunar Injection", t: "2026-04-02T23:49:00Z", confirmed: true },
+  // ── Outbound corrections ──────────────────────────────────────────────
+  // TCM-1 cancelled (trajectory precise) — NASA Flight Day 3 blog
+  // TCM-2 confirmed: 6:49 PM EDT Apr 3 = 22:49 UTC — 8-sec burn, 0.7 fps ΔV
+  { id: "tcm2",      label: "Outbound TCM-2",     t: "2026-04-03T22:49:00Z", confirmed: true  },
+  // TCM-3 confirmed scheduled: 11:03 PM EDT Apr 5 = 03:03 UTC Apr 6
+  { id: "tcm3",      label: "Outbound TCM-3",     t: "2026-04-06T03:03:00Z", confirmed: true  },
   // ── Lunar encounter ───────────────────────────────────────────────────
-  { id: "loientry", label: "Lunar SOI Entry",    t: "2026-04-06T06:00:00Z", confirmed: false },
-  { id: "distrecord",label: "Distance Record",   t: "2026-04-06T17:45:00Z", confirmed: false },
-  { id: "lunar",    label: "Lunar Flyby",        t: "2026-04-06T20:00:00Z", confirmed: false },
-  { id: "commsout", label: "Comms Blackout",     t: "2026-04-06T19:30:00Z", confirmed: false },
-  { id: "commback", label: "Comms Restored",     t: "2026-04-06T20:30:00Z", confirmed: false },
-  // ── Return coast — 3 trajectory corrections (Days 7–9) ───────────────
-  { id: "rtcm1",    label: "Return TCM-1",       t: "2026-04-07T18:00:00Z", confirmed: false },
-  { id: "rtcm2",    label: "Return TCM-2",       t: "2026-04-08T18:00:00Z", confirmed: false },
-  { id: "rtcm3",    label: "Return TCM-3",       t: "2026-04-09T18:00:00Z", confirmed: false },
+  // Lunar SOI entry confirmed: 12:37 AM EDT Apr 6 = 04:37 UTC
+  { id: "loientry",  label: "Lunar SOI Entry",    t: "2026-04-06T04:37:00Z", confirmed: true  },
+  // Distance record: 1:56 PM EDT Apr 6 = 17:56 UTC (NASA FAQ updated Apr 5)
+  { id: "distrecord",label: "Distance Record",    t: "2026-04-06T17:56:00Z", confirmed: true  },
+  // Flyby observation window opens: 2:45 PM EDT = 18:45 UTC
+  { id: "flybybegin",label: "Flyby Begins",       t: "2026-04-06T18:45:00Z", confirmed: true  },
+  // Comms blackout: 6:44 PM EDT = 22:44 UTC
+  { id: "commsout",  label: "Comms Blackout",     t: "2026-04-06T22:44:00Z", confirmed: true  },
+  // Closest approach: 7:02 PM EDT = 23:02 UTC — 4,070 mi above surface
+  { id: "lunar",     label: "Closest Approach",   t: "2026-04-06T23:02:00Z", confirmed: true  },
+  // Max distance from Earth: 7:07 PM EDT = 23:07 UTC — 252,760 mi
+  { id: "maxdist",   label: "Max Distance",       t: "2026-04-06T23:07:00Z", confirmed: true  },
+  // Earthrise / comms restored: 7:25 PM EDT = 23:25 UTC
+  { id: "commback",  label: "Comms Restored",     t: "2026-04-06T23:25:00Z", confirmed: true  },
+  // Flyby observation window closes: 9:20 PM EDT = 01:20 UTC Apr 7
+  { id: "flybyend",  label: "Flyby Ends",         t: "2026-04-07T01:20:00Z", confirmed: true  },
+  // ── Return coast — 3 correction burns Days 7–9, no exact times yet ───
+  { id: "rtcm1",     label: "Return TCM-1",       t: "2026-04-07T18:00:00Z", confirmed: false },
+  { id: "rtcm2",     label: "Return TCM-2",       t: "2026-04-08T18:00:00Z", confirmed: false },
+  { id: "rtcm3",     label: "Return TCM-3",       t: "2026-04-09T18:00:00Z", confirmed: false },
   // ── Entry & recovery ──────────────────────────────────────────────────
-  { id: "smsep",    label: "SM Separation",      t: "2026-04-11T00:00:00Z", confirmed: false },
-  { id: "entry",    label: "Reentry",            t: "2026-04-11T00:02:00Z", confirmed: false },
-  { id: "splashdown",label: "Splashdown",        t: "2026-04-11T00:06:00Z", confirmed: false },
+  // Splashdown confirmed: 8:07 PM EDT Apr 10 = 00:07 UTC Apr 11 (NASA FAQ)
+  { id: "smsep",     label: "SM Separation",      t: "2026-04-11T00:03:00Z", confirmed: false },
+  { id: "entry",     label: "Reentry",            t: "2026-04-11T00:05:00Z", confirmed: false },
+  { id: "splashdown",label: "Splashdown",         t: "2026-04-11T00:07:00Z", confirmed: false },
 ];
 
 function MilestonesTimeline({ targetOverride }) {
@@ -772,7 +798,7 @@ function MilestonesTimeline({ targetOverride }) {
           animVal = scrollOffset;
           return scrollOffset; // settled
         }
-        animVal = prev + diff * 0.12; // ease factor: lower = smoother/slower
+        animVal = prev + diff * 0.22; // ease factor: snappier on mobile
         return animVal;
       });
       animRaf.current = requestAnimationFrame(loop);
@@ -1080,7 +1106,7 @@ function MilestonesTimeline({ targetOverride }) {
               const opacity = (passed && !isActive ? 0.55 : 1) * distOp;
 
               return (
-                <g key={m.id} style={{ opacity, transition: "opacity 0.15s" }}>
+                <g key={m.id} style={{ opacity }}>
                   {/* Tick */}
                   <line
                     x1={svgX} y1={tickStart} x2={svgX} y2={tickEnd}

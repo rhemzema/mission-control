@@ -16,9 +16,9 @@ const LAYOUTS = {
 };
 
 const DEFAULT_STREAMS = [
-  { id: "nasa-1", label: "NASA Orion", type: "youtube", videoId: "6RwfNBtepa4", muted: true, color: "#E50914" },
-  { id: "nasa-2", label: "NASA Live",  type: "youtube", videoId: "m3kR2KK8TEs", muted: true, color: "#003399" },
-  { id: "nasa-3", label: "NASA Reentry",    type: "youtube", videoId: "nfhDuOHMp0A", muted: true, color: "#1E90FF" },
+  // { id: "nasa-1", label: "NASA Orion", type: "youtube", videoId: "6RwfNBtepa4", muted: true, color: "#E50914" },
+  // { id: "nasa-2", label: "NASA Live",  type: "youtube", videoId: "m3kR2KK8TEs", muted: true, color: "#003399" },
+  // { id: "nasa-3", label: "NASA Reentry",    type: "youtube", videoId: "nfhDuOHMp0A", muted: true, color: "#1E90FF" },
 ];
 const DEFAULT_UPDATES = [];
 
